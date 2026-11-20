@@ -26,6 +26,10 @@ COPY --from=build --chown=node:node /app/.next/static ./.next/static
 COPY --from=build --chown=node:node /app/public ./public
 COPY --from=build --chown=node:node /app/drizzle ./drizzle
 COPY --from=build --chown=node:node /app/dist ./dist
+COPY --from=build --chown=node:node /app/scripts/iniciar.sh ./scripts/iniciar.sh
 USER node
 EXPOSE 3000
-CMD ["node", "server.js"]
+# O Coolify não tem curl/wget aqui dentro; a verificação usa o Node da própria imagem.
+HEALTHCHECK --interval=15s --timeout=5s --start-period=40s --retries=3 CMD ["node","dist/checar-saude.js"]
+# Migra ao iniciar (idempotente) e sobe o servidor.
+CMD ["sh","scripts/iniciar.sh"]

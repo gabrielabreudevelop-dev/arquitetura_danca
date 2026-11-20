@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Teste de fumaça da imagem: sobe Postgres + imagem numa rede temporária,
-# migra, sobe a aplicação e confere /api/saude.
+# Teste de fumaça da imagem: sobe Postgres + imagem (CMD padrão, que migra ao
+# iniciar) numa rede temporária, confere /api/saude e o HEALTHCHECK da imagem.
 # Uso: scripts/smoke.sh <imagem>
 set -euo pipefail
 
@@ -32,18 +32,6 @@ for _ in $(seq 1 30); do
 done
 [ "${pronto:-0}" = 1 ] || { echo "Postgres não ficou pronto." >&2; exit 1; }
 
-# O Postgres reinicia ao fim da inicialização; tenta a migração algumas vezes.
-migrou=0
-for _ in $(seq 1 5); do
-  if docker run --rm --network "$rede" -e DATABASE_URL="$url" \
-    "$imagem" node dist/migrar.js >&2; then
-    migrou=1
-    break
-  fi
-  sleep 2
-done
-[ "$migrou" = 1 ] || { echo "Migração falhou." >&2; exit 1; }
-
 docker run -d --name "$app" --network "$rede" \
   -e DATABASE_URL="$url" \
   -e BETTER_AUTH_SECRET="smoke-segredo-com-pelo-menos-32-caracteres-${sufixo}" \
@@ -59,8 +47,17 @@ for _ in $(seq 1 30); do
   sleep 1
 done
 
-if [ "$corpo" != "$esperado" ]; then
-  docker logs "$app" >&2 || true
-fi
+# O HEALTHCHECK da imagem precisa ficar "healthy" (até ~60 s).
+saude=""
+for _ in $(seq 1 30); do
+  saude="$(docker inspect -f '{{.State.Health.Status}}' "$app" 2>/dev/null || true)"
+  [ "$saude" = "healthy" ] && break
+  sleep 2
+done
+
 echo "$corpo"
-[ "$corpo" = "$esperado" ]
+echo "healthcheck: ${saude:-desconhecido}"
+if [ "$corpo" != "$esperado" ] || [ "$saude" != "healthy" ]; then
+  docker logs "$app" >&2 || true
+  exit 1
+fi
