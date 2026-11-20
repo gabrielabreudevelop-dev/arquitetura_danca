@@ -61,3 +61,19 @@ export async function exigirPapel(
   if (decisao === "sem-acesso" || !pessoa) redirect("/sem-acesso");
   return { pessoaId: pessoa.id, nome: pessoa.nome, papeis };
 }
+
+/**
+ * Diz se a visita atual tem sessão de uma pessoa com o papel de administração.
+ * Nunca redireciona: serve a rotas que respondem 404 a quem não tem acesso.
+ */
+export async function sessaoEhAdministracao(): Promise<boolean> {
+  const sessao = await obterAuth().api.getSession({ headers: await headers() });
+  if (!sessao) return false;
+  const db = obterBanco();
+  const [pessoa] = await db
+    .select({ id: pessoas.id })
+    .from(pessoas)
+    .where(eq(pessoas.usuarioId, sessao.user.id));
+  if (!pessoa) return false;
+  return (await papeisAtivos(db, pessoa.id)).includes("administracao");
+}
