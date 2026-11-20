@@ -1,0 +1,352 @@
+{
+  "id": "fa26838b-98cb-460c-8b9d-287b0fd4d105",
+  "prevId": "fe0d95e6-63f0-496a-ae57-379e0405879b",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "public.extensoes_periodo": {
+      "name": "extensoes_periodo",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "periodo_id": {
+          "name": "periodo_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "dias": {
+          "name": "dias",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "motivo": {
+          "name": "motivo",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "criado_por": {
+          "name": "criado_por",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "criado_em": {
+          "name": "criado_em",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "extensoes_periodo_periodo_id_periodos_contratados_id_fk": {
+          "name": "extensoes_periodo_periodo_id_periodos_contratados_id_fk",
+          "tableFrom": "extensoes_periodo",
+          "tableTo": "periodos_contratados",
+          "columnsFrom": ["periodo_id"],
+          "columnsTo": ["id"],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "extensoes_periodo_criado_por_pessoas_id_fk": {
+          "name": "extensoes_periodo_criado_por_pessoas_id_fk",
+          "tableFrom": "extensoes_periodo",
+          "tableTo": "pessoas",
+          "columnsFrom": ["criado_por"],
+          "columnsTo": ["id"],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "extensoes_periodo_dias_positivo": {
+          "name": "extensoes_periodo_dias_positivo",
+          "value": "\"extensoes_periodo\".\"dias\" > 0"
+        },
+        "extensoes_periodo_motivo_preenchido": {
+          "name": "extensoes_periodo_motivo_preenchido",
+          "value": "length(trim(\"extensoes_periodo\".\"motivo\")) > 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.periodos_contratados": {
+      "name": "periodos_contratados",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "aluno_id": {
+          "name": "aluno_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "inicio": {
+          "name": "inicio",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "fim": {
+          "name": "fim",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "criado_em": {
+          "name": "criado_em",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "periodos_contratados_aluno_id_pessoas_id_fk": {
+          "name": "periodos_contratados_aluno_id_pessoas_id_fk",
+          "tableFrom": "periodos_contratados",
+          "tableTo": "pessoas",
+          "columnsFrom": ["aluno_id"],
+          "columnsTo": ["id"],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "periodos_contratados_fim_apos_inicio": {
+          "name": "periodos_contratados_fim_apos_inicio",
+          "value": "\"periodos_contratados\".\"fim\" >= \"periodos_contratados\".\"inicio\""
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.pessoa_papeis": {
+      "name": "pessoa_papeis",
+      "schema": "",
+      "columns": {
+        "pessoa_id": {
+          "name": "pessoa_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "papel": {
+          "name": "papel",
+          "type": "papel",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "pessoa_papeis_pessoa_id_pessoas_id_fk": {
+          "name": "pessoa_papeis_pessoa_id_pessoas_id_fk",
+          "tableFrom": "pessoa_papeis",
+          "tableTo": "pessoas",
+          "columnsFrom": ["pessoa_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "pessoa_papeis_pessoa_id_papel_pk": {
+          "name": "pessoa_papeis_pessoa_id_papel_pk",
+          "columns": ["pessoa_id", "papel"]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.pessoas": {
+      "name": "pessoas",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "nome": {
+          "name": "nome",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "whatsapp": {
+          "name": "whatsapp",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "data_nascimento": {
+          "name": "data_nascimento",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "usuario_id": {
+          "name": "usuario_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "criado_em": {
+          "name": "criado_em",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "atualizado_em": {
+          "name": "atualizado_em",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "pessoas_email_unico": {
+          "name": "pessoas_email_unico",
+          "columns": [
+            {
+              "expression": "lower(\"email\")",
+              "asc": true,
+              "isExpression": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"pessoas\".\"email\" is not null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "pessoas_usuario_id_unique": {
+          "name": "pessoas_usuario_id_unique",
+          "nullsNotDistinct": false,
+          "columns": ["usuario_id"]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.responsabilidades": {
+      "name": "responsabilidades",
+      "schema": "",
+      "columns": {
+        "responsavel_id": {
+          "name": "responsavel_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "aluno_id": {
+          "name": "aluno_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "responsabilidades_responsavel_id_pessoas_id_fk": {
+          "name": "responsabilidades_responsavel_id_pessoas_id_fk",
+          "tableFrom": "responsabilidades",
+          "tableTo": "pessoas",
+          "columnsFrom": ["responsavel_id"],
+          "columnsTo": ["id"],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "responsabilidades_aluno_id_pessoas_id_fk": {
+          "name": "responsabilidades_aluno_id_pessoas_id_fk",
+          "tableFrom": "responsabilidades",
+          "tableTo": "pessoas",
+          "columnsFrom": ["aluno_id"],
+          "columnsTo": ["id"],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "responsabilidades_responsavel_id_aluno_id_pk": {
+          "name": "responsabilidades_responsavel_id_aluno_id_pk",
+          "columns": ["responsavel_id", "aluno_id"]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "responsabilidades_responsavel_diferente_do_aluno": {
+          "name": "responsabilidades_responsavel_diferente_do_aluno",
+          "value": "\"responsabilidades\".\"responsavel_id\" <> \"responsabilidades\".\"aluno_id\""
+        }
+      },
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {
+    "public.papel": {
+      "name": "papel",
+      "schema": "public",
+      "values": [
+        "administracao",
+        "atendente",
+        "professor",
+        "aluno",
+        "responsavel"
+      ]
+    }
+  },
+  "schemas": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}
