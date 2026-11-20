@@ -172,15 +172,8 @@ export async function atualizarProfessor(
   const { nome, email, whatsapp } = limpo.valor;
   return executarTraduzindo(async () => {
     return db.transaction(async (tx) => {
-      const [linha] = await tx
-        .update(pessoas)
-        .set({ nome, email, whatsapp, atualizadoEm: new Date() })
-        .where(eq(pessoas.id, pessoaId))
-        .returning({ id: pessoas.id });
-      if (!linha) {
-        return { ok: false, erros: { _: "Professor não encontrado." } };
-      }
-      await tx
+      // Primeiro o papel: sem ele, a pessoa não é professor e nada é alterado.
+      const papeis = await tx
         .update(pessoaPapeis)
         .set({ ativo: dados.ativo })
         .where(
@@ -188,7 +181,15 @@ export async function atualizarProfessor(
             eq(pessoaPapeis.pessoaId, pessoaId),
             eq(pessoaPapeis.papel, "professor"),
           ),
-        );
+        )
+        .returning({ pessoaId: pessoaPapeis.pessoaId });
+      if (papeis.length === 0) {
+        return { ok: false, erros: { _: "Professor não encontrado." } };
+      }
+      await tx
+        .update(pessoas)
+        .set({ nome, email, whatsapp, atualizadoEm: new Date() })
+        .where(eq(pessoas.id, pessoaId));
       return { ok: true, valor: null };
     });
   }, ERROS_BANCO);
@@ -211,14 +212,18 @@ export async function excluirProfessor(
           .where(eq(turmas.professorId, pessoaId))
           .limit(1);
         if (turma) return { ok: false, erros: { _: MENSAGEM_EM_USO } };
-        await tx
+        const removidos = await tx
           .delete(pessoaPapeis)
           .where(
             and(
               eq(pessoaPapeis.pessoaId, pessoaId),
               eq(pessoaPapeis.papel, "professor"),
             ),
-          );
+          )
+          .returning({ pessoaId: pessoaPapeis.pessoaId });
+        if (removidos.length === 0) {
+          return { ok: false, erros: { _: "Professor não encontrado." } };
+        }
         const [outro] = await tx
           .select({ papel: pessoaPapeis.papel })
           .from(pessoaPapeis)

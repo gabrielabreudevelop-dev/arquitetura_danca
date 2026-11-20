@@ -209,3 +209,30 @@ it("nunca apaga a pessoa que tem login", async () => {
     await banco.db.select().from(pessoas).where(eq(pessoas.id, p.id)),
   ).toHaveLength(1);
 });
+
+it("excluir e atualizar recusam pessoa sem o papel de professor", async () => {
+  const [pessoa] = await banco.db
+    .insert(pessoas)
+    .values({ nome: "Contato Avulso", email: "avulso@exemplo.dev" })
+    .returning();
+  const naoEncontrado = {
+    ok: false,
+    erros: { _: "Professor não encontrado." },
+  };
+  expect(await excluirProfessor(banco.db, pessoa.id)).toEqual(naoEncontrado);
+  expect(
+    await atualizarProfessor(banco.db, pessoa.id, {
+      nome: "Outro",
+      email: "",
+      ativo: true,
+    }),
+  ).toEqual(naoEncontrado);
+  const [depois] = await banco.db
+    .select()
+    .from(pessoas)
+    .where(eq(pessoas.id, pessoa.id));
+  expect(depois).toMatchObject({
+    nome: "Contato Avulso",
+    email: "avulso@exemplo.dev",
+  });
+});
