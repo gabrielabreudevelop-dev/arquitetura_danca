@@ -1,13 +1,21 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { ESTUDIO } from "@/estudio";
+import { ambiente } from "@/servidor/ambiente";
 import { obterBanco } from "@/servidor/banco/cliente";
 import { listarRitmosDaGrade } from "@/servidor/vitrine/consultas";
+import { metadadosPadrao } from "@/servidor/vitrine/metadados";
 import { urlDaGrade } from "@/servidor/vitrine/texto";
 
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = { title: "Grade de horários" };
+export function generateMetadata(): Metadata {
+  return metadadosPadrao(ambiente.BETTER_AUTH_URL, {
+    titulo: "Grade de horários",
+    descricao: "Dias e horários das turmas do estúdio, por ritmo e módulo.",
+    caminho: "/grade",
+  });
+}
 
 /** /grade abre no primeiro ritmo; sem ritmos, mostra o estado vazio. */
 export default async function Grade() {

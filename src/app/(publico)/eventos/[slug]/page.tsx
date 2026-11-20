@@ -1,10 +1,13 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { ambiente } from "@/servidor/ambiente";
 import { obterBanco } from "@/servidor/banco/cliente";
 import { obterEventoPublico } from "@/servidor/vitrine/consultas";
 import {
   linkCompartilharWhatsapp,
   urlDoEvento,
 } from "@/servidor/vitrine/eventos";
+import { metadadosDoEvento } from "@/servidor/vitrine/metadados";
 import {
   formatarDataCurta,
   formatarDataEvento,
@@ -13,6 +16,15 @@ import { BotaoIngresso } from "../../componentes/botao-ingresso";
 import { Compartilhar } from "./compartilhar";
 
 export const dynamic = "force-dynamic";
+
+type Props = { params: Promise<{ slug: string }> };
+
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const { slug } = await params;
+  const evento = await obterEventoPublico(obterBanco(), slug, new Date());
+  if (!evento) return { title: "Evento não encontrado" };
+  return metadadosDoEvento(evento, ambiente.BETTER_AUTH_URL);
+}
 
 const estiloFaixa = "faixa-esgotado px-3 py-1";
 

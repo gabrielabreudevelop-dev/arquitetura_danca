@@ -1,13 +1,21 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ESTUDIO } from "@/estudio";
+import { ambiente } from "@/servidor/ambiente";
 import { obterBanco } from "@/servidor/banco/cliente";
 import { listarProximosEventos } from "@/servidor/vitrine/consultas";
+import { metadadosPadrao } from "@/servidor/vitrine/metadados";
 import { formatarDataEvento } from "@/servidor/vitrine/texto";
 
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = { title: "Eventos" };
+export function generateMetadata(): Metadata {
+  return metadadosPadrao(ambiente.BETTER_AUTH_URL, {
+    titulo: "Eventos",
+    descricao: "Próximos bailes, workshops e festas do estúdio.",
+    caminho: "/eventos",
+  });
+}
 
 export default async function Eventos() {
   const eventos = await listarProximosEventos(obterBanco(), new Date());

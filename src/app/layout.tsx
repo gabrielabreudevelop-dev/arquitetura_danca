@@ -19,7 +19,7 @@ const fonteAssinatura = localFont({
 });
 
 export const metadata: Metadata = {
-  title: NOME_ESTUDIO,
+  title: { default: NOME_ESTUDIO, template: `%s · ${NOME_ESTUDIO}` },
   description: "Vídeos dos passos, eventos e comunidade do estúdio.",
 };
 

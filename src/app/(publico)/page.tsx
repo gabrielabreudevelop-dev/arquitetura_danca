@@ -1,10 +1,25 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { ESTUDIO } from "@/estudio";
+import { ambiente } from "@/servidor/ambiente";
 import { obterBanco } from "@/servidor/banco/cliente";
+import { metadadosPadrao } from "@/servidor/vitrine/metadados";
 import { montarPaginaInicial } from "@/servidor/vitrine/pagina-inicial";
 import { DestaqueEvento } from "./componentes/destaque-evento";
 
 export const dynamic = "force-dynamic";
+
+export function generateMetadata(): Metadata {
+  return {
+    ...metadadosPadrao(ambiente.BETTER_AUTH_URL, {
+      titulo: ESTUDIO.nome,
+      descricao:
+        "Aulas de dança de salão e ritmos brasileiros em Vitória/ES. Veja a grade de horários e os próximos eventos.",
+      caminho: "/",
+    }),
+    title: { absolute: ESTUDIO.nome },
+  };
+}
 
 const FRASE = "A dança é a linguagem escondida da alma.";
 

@@ -1,11 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { ambiente } from "@/servidor/ambiente";
 import { obterBanco } from "@/servidor/banco/cliente";
 import {
   listarRitmosDaGrade,
   obterGradeDoRitmo,
 } from "@/servidor/vitrine/consultas";
+import { metadadosPadrao } from "@/servidor/vitrine/metadados";
 import {
   formatarDias,
   formatarHorario,
@@ -15,12 +17,23 @@ import { Filtros } from "../filtros";
 
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = { title: "Grade de horários" };
-
 type Props = {
   params: Promise<{ ritmo: string }>;
   searchParams: Promise<{ [chave: string]: string | string[] | undefined }>;
 };
+
+export async function generateMetadata({
+  params,
+}: Pick<Props, "params">): Promise<Metadata> {
+  const { ritmo: slug } = await params;
+  const grade = await obterGradeDoRitmo(obterBanco(), slug, {});
+  if (!grade) return { title: "Grade de horários" };
+  return metadadosPadrao(ambiente.BETTER_AUTH_URL, {
+    titulo: `Grade de horários de ${grade.ritmo.nome}`,
+    descricao: `Dias e horários das turmas de ${grade.ritmo.nome} do estúdio.`,
+    caminho: `/grade/${grade.ritmo.slug}`,
+  });
+}
 
 function primeiro(valor: string | string[] | undefined): string | undefined {
   return Array.isArray(valor) ? valor[0] : valor;
