@@ -8,6 +8,7 @@ import {
   formatarHorario,
   gerarSlug,
   instanteParaDataHoraLocal,
+  urlDaGrade,
 } from "./texto";
 
 describe("gerarSlug", () => {
@@ -90,5 +91,15 @@ describe("formatarDataEvento", () => {
 describe("formatarDataCurta", () => {
   it("usa dia/mês no fuso de São Paulo", () => {
     expect(formatarDataCurta(new Date("2026-12-14T00:00:00Z"))).toBe("13/12");
+  });
+});
+
+describe("urlDaGrade", () => {
+  it("monta o endereço com os filtros em ordem fixa", () => {
+    expect(urlDaGrade("forro", {})).toBe("/grade/forro");
+    expect(urlDaGrade("forro", { dia: "ter", modulo: "iniciante" })).toBe(
+      "/grade/forro?modulo=iniciante&dia=ter",
+    );
+    expect(urlDaGrade("forro", { dia: "sab" })).toBe("/grade/forro?dia=sab");
   });
 });

@@ -181,3 +181,15 @@ export function fimDoDiaEmSaoPaulo(instante: Date): Date {
     `${seguinte.toISOString().slice(0, 10)}T00:00`,
   );
 }
+
+/** Endereço da grade de um ritmo; filtros sempre na ordem módulo, dia. */
+export function urlDaGrade(
+  ritmoSlug: string,
+  filtros: { modulo?: string; dia?: string },
+): string {
+  const busca = new URLSearchParams();
+  if (filtros.modulo) busca.set("modulo", filtros.modulo);
+  if (filtros.dia) busca.set("dia", filtros.dia);
+  const texto = busca.toString();
+  return `/grade/${ritmoSlug}${texto ? `?${texto}` : ""}`;
+}
