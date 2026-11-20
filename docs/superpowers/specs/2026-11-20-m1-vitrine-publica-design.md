@@ -187,7 +187,7 @@ Verificável no M1 (localmente e na CI):
 - [x] A administração cadastra, edita, desativa e (quando permitido) exclui ritmos, módulos, professores, turmas e eventos; uma pessoa só atendente não acessa as telas nem consegue executar as actions (testado).
 - [x] A grade e os eventos aparecem sem login, só com conteúdo ativo e publicado, sem nomes de pessoas (testado).
 - [x] A página de um evento traz as tags Open Graph completas, com imagem acessível pela rota pública, com e sem capa (testado).
-- [x] Cada tela pública e do painel foi verificada no celular, no tablet e no computador, com os estados vazio, carregando e erro desenhados.
+- [x] Cada tela pública e do painel foi verificada no celular, no tablet e no computador (375, 768 e 1280 px). Formulários do painel: estados de erro (validação) e enviando (botão "Salvando…" desabilitado). Listas do painel e páginas públicas: estado vazio. As páginas públicas são renderizadas no servidor e não têm estado de carregamento próprio.
 - [ ] CI verde: lint, tipos, unidade, integração, build e imagem Docker.
 
 Pendentes até o servidor existir (dono):

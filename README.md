@@ -85,7 +85,7 @@ O M1 abre o site ao público e dá à administração os cadastros que o aliment
 1. Em Ritmos, cadastre os ritmos na ordem em que devem aparecer (campo "Ordem").
 2. Em Módulos, cadastre os níveis (Iniciante, Básico...), também em ordem.
 3. Em Professores, cadastre quem dá aula. Os nomes só aparecem no painel.
-4. Em Turmas, crie uma turma por ritmo, módulo, professor, dias e horário. Só turmas ativas aparecem em `/grade`.
+4. Em Turmas, crie uma turma para cada combinação de ritmo, módulo, professor, dias e horário. Só turmas ativas aparecem em `/grade`.
 5. Em Eventos, cadastre e marque "Publicado" para o evento aparecer no site. Eventos passados continuam acessíveis pelo link.
 
 Horários são digitados e exibidos em `America/Sao_Paulo`, seja qual for o fuso do servidor. Os dados fixos do estúdio (Instagram, WhatsApp, endereço, funcionamento) ficam em `src/estudio.ts`.
@@ -94,7 +94,8 @@ Horários são digitados e exibidos em `America/Sao_Paulo`, seja qual for o fuso
 
 - [ ] Cadastrar a grade real do estúdio em produção e conferir que `/grade` aparece sem login.
 - [ ] Colar o link de um evento no WhatsApp (com e sem capa) e conferir a prévia com imagem.
-- [ ] Rodar `docker build` e `scripts/smoke.sh` (a CI faz isso a cada push).
+
+O `docker build` e o `scripts/smoke.sh` rodam na CI a cada push.
 
 ## Fechamento do M0 em produção
 
