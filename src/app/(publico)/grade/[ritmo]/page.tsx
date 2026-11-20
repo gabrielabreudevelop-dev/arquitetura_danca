@@ -68,6 +68,7 @@ export default async function GradeDoRitmo({ params, searchParams }: Props) {
       </nav>
 
       <Filtros
+        key={`${ritmo.slug}|${filtrosAplicados.modulo ?? ""}|${filtrosAplicados.dia ?? ""}`}
         ritmoSlug={ritmo.slug}
         modulos={modulos}
         modulo={filtrosAplicados.modulo}
