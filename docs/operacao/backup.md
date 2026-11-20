@@ -33,6 +33,8 @@ No recurso `postgres-producao` (Coolify), aba Backups, crie um backup agendado:
 | Salvar também na VPS | opcional; o que vale é a cópia no S3 |
 | Retenção no S3 | 30 dias (preencha o campo de retenção do destino S3; se o Coolify oferecer retenção por quantidade, use 30 backups) |
 
+Deixe **desligada** a opção "backup de todos os bancos" (`pg_dumpall`, arquivo `.gz`): a restauração deste roteiro usa o dump por banco, em formato custom (`.dmp`), que é o que o backup agendado normal gera.
+
 Faça o mesmo para homologação só se quiser; produção é o que importa.
 
 Como conferir: use "Backup Now". Em poucos minutos o arquivo aparece no bucket (o Coolify gera um dump no formato custom do `pg_dump`, extensão `.dmp`) e a execução aparece como bem-sucedida no histórico do backup.
@@ -55,7 +57,7 @@ Faça isto numa máquina com o repositório, Node 26 e pnpm (`pnpm install`), e 
    ./scripts/restaurar-backup.sh ultimo.dmp postgres://usuario:senha@localhost:5432/restauracao
    ```
 
-   O script roda `pg_restore --no-owner --clean --if-exists` e em seguida o verificador (`pnpm backup:verificar -- <url>`). O verificador não altera o banco; ele confere que:
+   O script recusa (código 2) um banco de destino que já tenha tabelas no schema `public`, roda `pg_restore --no-owner --no-privileges` (sem `--clean`) e em seguida o verificador. Se o `pg_restore` terminar com erros não fatais, o script avisa e continua: o código de saída do script é o do verificador. O verificador não altera o banco; ele confere que:
 
    - o histórico de migrações do banco tem o mesmo número de migrações da pasta `drizzle/`;
    - os seis tipos de consentimento existem (`termos_uso`, `politica_privacidade`, `whatsapp_servico`, `whatsapp_novidades`, `lista_quem_vai`, `uso_imagem`);
@@ -73,8 +75,8 @@ Faça isto numa máquina com o repositório, Node 26 e pnpm (`pnpm install`), e 
 Observações:
 
 - A versão (principal) do `pg_restore` precisa ser **igual ou maior** que a do servidor que gerou o dump. A produção usa Postgres 17, então use `pg_restore` 17 ou mais novo (`pg_restore --version`). Com versão menor, o `pg_restore` recusa o arquivo.
-- O banco de destino deve estar vazio. O `pg_restore` pode imprimir erros não fatais e ainda assim restaurar o essencial; leia as mensagens e confie no resultado do verificador, não na ausência de avisos.
-- Dentro da imagem de produção (`dist/verificar-restauracao.js`), o verificador também roda: `node dist/verificar-restauracao.js <url>`. O script `restaurar-backup.sh` usa esse arquivo quando ele existe e, caso contrário, `pnpm backup:verificar`.
+- O banco de destino deve estar vazio; o script se recusa a restaurar sobre um banco com tabelas. O `pg_restore` pode imprimir erros não fatais e ainda assim restaurar o essencial; leia as mensagens e confie no resultado do verificador, não na ausência de avisos.
+- Dentro da imagem de produção (`dist/verificar-restauracao.js`), o verificador também roda: `node dist/verificar-restauracao.js <url>`. Dentro do repositório (com `package.json` e `pnpm`), o script `restaurar-backup.sh` usa `pnpm backup:verificar --` e imprime qual verificador roda; só sem pnpm/`package.json` (como na imagem) ele usa `node dist/verificar-restauracao.js`.
 - Apague o banco de restauração quando terminar: ele contém dados reais de alunos.
 
 ## 6. Repetir antes do M4

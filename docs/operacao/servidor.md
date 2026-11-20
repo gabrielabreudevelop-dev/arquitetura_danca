@@ -14,9 +14,9 @@ Ambientes:
 ## 1. Contratar a VPS
 
 1. Contrate uma VPS em São Paulo, com no mínimo 2 vCPU e 4 GB de RAM, sistema Ubuntu LTS. Sugestão: Hostinger KVM 2 (2 vCPU, 8 GB).
-2. No painel do provedor, anote o IP público (`<ip>`) e, se possível, cadastre sua chave SSH pública na criação do servidor.
+2. No painel do provedor, anote o IP público (`<ip>`). Se o provedor pedir uma senha de root ou uma chave na criação, use a senha (ou uma chave temporária) só para o primeiro acesso: a sua chave pessoal **não** deve ficar em `/root/.ssh/authorized_keys` (veja a seção 2).
 
-Como conferir: `ssh root@<ip>` entra no servidor (neste ponto o root ainda é permitido) e `lsb_release -a` mostra Ubuntu LTS.
+Como conferir: `ssh root@<ip>` entra no servidor (neste ponto o root ainda entra com a senha) e `lsb_release -a` mostra Ubuntu LTS.
 
 ## 2. Preparar o servidor (usuário, SSH, firewall, atualizações)
 
@@ -38,9 +38,11 @@ ssh-copy-id <usuario>@<ip>
 Abra uma segunda sessão e confirme que `ssh <usuario>@<ip>` entra sem pedir a senha do servidor e que `sudo -v` funciona. Só então endureça o SSH. Edite `/etc/ssh/sshd_config` (e confira se arquivos em `/etc/ssh/sshd_config.d/` não sobrescrevem) com:
 
 ```text
-PermitRootLogin no
+PermitRootLogin prohibit-password
 PasswordAuthentication no
 ```
+
+Por que `prohibit-password` e não `no`: o Coolify gerencia o próprio servidor (`localhost`) por SSH como root, com uma chave dele, que o instalador adiciona em `/root/.ssh/authorized_keys`. Com `PermitRootLogin no` o Coolify perde o acesso e os deploys falham. Com `prohibit-password`, o root só entra por chave. Por isso, **a sua chave pessoal não deve estar em `/root/.ssh/authorized_keys`**: só a chave do Coolify (e confira antes de endurecer que não há outra lá, removendo a sua se o provedor a tiver colocado). Você administra o servidor pelo `<usuario>` com `sudo`.
 
 ```bash
 sudo sshd -t && sudo systemctl restart ssh
@@ -57,7 +59,7 @@ sudo apt update && sudo apt install -y unattended-upgrades
 sudo dpkg-reconfigure -plow unattended-upgrades
 ```
 
-Como conferir: `ssh root@<ip>` é recusado; `ssh <usuario>@<ip>` entra; `sudo ufw status` lista 22, 80 e 443; `systemctl status unattended-upgrades` mostra ativo.
+Como conferir: `ssh root@<ip>` com senha é recusado; `ssh -o PreferredAuthentications=publickey root@<ip>` dá `Permission denied` (sua chave não é aceita para root); `ssh <usuario>@<ip>` entra; `sudo ufw status` lista 22, 80 e 443; `systemctl status unattended-upgrades` mostra ativo.
 
 ## 3. Instalar o Coolify e proteger o painel
 
@@ -79,6 +81,8 @@ No provedor do domínio, crie registros do tipo A apontando para `<ip>`:
 - `homologacao.<domínio>`
 - `coolify.<domínio>` (painel)
 
+Deixe os três registros como **"DNS only"** (sem o proxy da Cloudflare, nuvem cinza): o limite de tentativas de login usa o IP real do cliente, que o proxy esconderia. O HTTPS é emitido pelo próprio Coolify.
+
 Aguarde a propagação (de minutos a algumas horas).
 
 Como conferir: `dig +short <domínio>`, `dig +short homologacao.<domínio>` e `dig +short coolify.<domínio>` devolvem `<ip>`.
@@ -95,6 +99,8 @@ Como conferir: no Coolify os dois bancos aparecem como "Running"; nenhum mostra 
 
 ## 6. Criar as duas aplicações
 
+Antes, crie o branch `homologacao` a partir da `main` (`git switch main && git pull && git switch -c homologacao && git push -u origin homologacao`), porque a aplicação de homologação precisa dele.
+
 No Coolify, conecte o repositório `gabrielabreudevelop-dev/arquitetura_danca` e crie duas aplicações, ambas com build pack **Dockerfile** (o `Dockerfile` está na raiz do repositório; a aplicação escuta na porta 3000):
 
 | Aplicação | Branch | Domínio |
@@ -105,8 +111,8 @@ No Coolify, conecte o repositório `gabrielabreudevelop-dev/arquitetura_danca` e
 Em cada uma:
 
 - Porta exposta: `3000`.
-- Comando de pré-deploy (pre-deployment command): `node dist/migrar.js`. Ele aplica as migrações antes de cada versão subir.
-- Health check: caminho `/api/saude`, porta `3000`. Resposta saudável: HTTP 200 com `{"status":"ok","banco":"ok"}` (503 se o banco não responder).
+- Não configure comando de pré-deploy. As migrações rodam quando o contêiner inicia (`scripts/iniciar.sh` executa `node dist/migrar.js` e depois sobe o servidor). Elas são idempotentes: sem migração pendente, nada muda. O comando de pré-deploy do Coolify roda no contêiner antigo e é pulado no primeiro deploy, então não serve para isso. Se uma migração falhar, o contêiner novo sai com erro e nunca fica saudável; o Coolify mantém o contêiner antigo servindo.
+- Health check do Coolify: **deixe desligado**. A imagem já tem um `HEALTHCHECK` no Dockerfile (`node dist/checar-saude.js`, que chama `/api/saude` e só aceita HTTP 200; resposta saudável `{"status":"ok","banco":"ok"}`, 503 se o banco não responder), e o Coolify o usa quando o health check dele está desligado. O health check HTTP do Coolify roda `curl`/`wget` dentro do contêiner, e a imagem `node:26-slim` não tem nenhum dos dois: ligá-lo marcaria todo deploy como não saudável e o desfaria.
 - Ative o deploy automático por push no branch correspondente.
 - HTTPS (Let's Encrypt) é emitido pelo Coolify ao salvar o domínio; o DNS da seção 4 precisa estar pronto.
 
@@ -129,7 +135,7 @@ Nunca coloque esses valores no repositório. `DATABASE_URL_TESTE_ADMIN` é só d
 
 Depois de salvar as variáveis, faça o deploy das duas aplicações.
 
-Como conferir: o deploy termina com sucesso (o pre-deploy `node dist/migrar.js` roda sem erro nos logs); `curl -sS https://<domínio>/api/saude` devolve `{"status":"ok","banco":"ok"}`; o mesmo para `https://homologacao.<domínio>/api/saude`.
+Como conferir: o deploy termina com sucesso e o contêiner aparece como saudável (nos logs, "Migrações aplicadas." aparece antes de o servidor subir); `curl -sS https://<domínio>/api/saude` devolve `{"status":"ok","banco":"ok"}`; o mesmo para `https://homologacao.<domínio>/api/saude`.
 
 ### Criar o primeiro usuário da equipe
 
@@ -168,13 +174,15 @@ curl -sS https://<domínio>/api/saude
 curl -sS https://homologacao.<domínio>/api/saude
 curl -sI http://<domínio>
 ssh root@<ip>
+ssh -o PreferredAuthentications=publickey root@<ip>
 ```
 
 Resultado esperado:
 
 - [ ] Os dois primeiros devolvem `{"status":"ok","banco":"ok"}`.
 - [ ] `curl -sI http://<domínio>` mostra redirecionamento 301 ou 308 com `Location: https://...`.
-- [ ] `ssh root@<ip>` é recusado (Permission denied).
+- [ ] `ssh root@<ip>` (senha) é recusado e `ssh -o PreferredAuthentications=publickey root@<ip>` dá Permission denied (sua chave não vale para root).
+- [ ] No Coolify, o servidor `localhost` aparece como acessível (Validate Server com sucesso).
 - [ ] `sudo ufw status` mostra só 22, 80 e 443 (sem 8000).
 - [ ] Nenhum Postgres com porta pública; `nc -zv <ip> 5432` não conecta.
 - [ ] Monitor externo em "Up" e alerta de e-mail testado.
