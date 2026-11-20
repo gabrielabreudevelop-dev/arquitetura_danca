@@ -14,7 +14,7 @@ Plataforma web responsiva, pensada primeiro para o celular, do estúdio de danç
 pnpm install
 docker compose up -d postgres        # Postgres 17 em localhost:5432 (ou use um Postgres local)
 cp .env.example .env.local           # preencha os valores (veja abaixo)
-pnpm db:migrar                       # aplica as migrações
+pnpm db:migrar                       # aplica as migrações (lê .env.local)
 pnpm equipe:criar --nome "Nome" --email "email@exemplo.com" --papel administracao
 pnpm dev                             # http://localhost:3000
 ```
@@ -27,7 +27,7 @@ Variáveis de `.env.local` (nunca versione valores reais):
 - `DATABASE_URL_TESTE_ADMIN`: superusuário do Postgres, usado só pelos testes de integração para criar e remover bancos temporários (ex.: `postgres://dev:dev@localhost:5432/postgres`).
 - `PROXIES_CONFIAVEIS`: opcional, deixe vazia.
 
-O `pnpm equipe:criar` pede a senha no terminal (não a passe como argumento). O papel aceito é `administracao` ou `atendente`. Depois, entre em `http://localhost:3000/entrar`.
+O `pnpm equipe:criar` pede a senha no terminal (não a passe como argumento; mínimo de 12 caracteres). O papel aceito é `administracao` ou `atendente`. Depois, entre em `http://localhost:3000/entrar`.
 
 ## Comandos
 
@@ -44,6 +44,8 @@ O `pnpm equipe:criar` pede a senha no terminal (não a passe como argumento). O 
 | `pnpm build:scripts` | Empacota os scripts em `dist/` (usados em produção) |
 | `pnpm equipe:criar` | Cria um membro da equipe (`--nome`, `--email`, `--papel`) |
 | `pnpm backup:verificar -- <url>` | Verifica um banco restaurado de backup |
+
+Em produção, as migrações rodam sozinhas quando o contêiner inicia (`scripts/iniciar.sh` executa `node dist/migrar.js` e depois o servidor); não há comando de pré-deploy no Coolify.
 
 ## Estrutura
 
