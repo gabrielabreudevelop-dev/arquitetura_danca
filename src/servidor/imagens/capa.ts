@@ -75,6 +75,7 @@ export async function processarCapa(arquivo: {
     };
   } catch (erro) {
     if (erro instanceof ErroCapa) throw erro;
+    console.error("Falha ao processar a capa:", erro);
     throw new ErroCapa(MENSAGEM_FORMATO);
   }
 }

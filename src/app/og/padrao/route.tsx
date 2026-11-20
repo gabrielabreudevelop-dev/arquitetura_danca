@@ -7,6 +7,6 @@ export const runtime = "nodejs";
 export function GET() {
   return imagemPrevia({
     titulo: ESTUDIO.nome,
-    linha: "A dança é a linguagem escondida da alma.",
+    linha: ESTUDIO.slogan,
   });
 }

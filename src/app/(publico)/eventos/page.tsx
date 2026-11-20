@@ -66,13 +66,15 @@ export default async function Eventos() {
                 <h2 className="text-base">
                   <Link
                     href={`/eventos/${evento.slug}`}
-                    className="font-bold underline decoration-link underline-offset-4 after:absolute after:inset-0 hover:decoration-2"
+                    className="font-bold [overflow-wrap:anywhere] underline decoration-link underline-offset-4 after:absolute after:inset-0 hover:decoration-2"
                   >
                     {evento.titulo}
                   </Link>
                 </h2>
                 {evento.local && (
-                  <p className="text-texto-suave">{evento.local}</p>
+                  <p className="text-texto-suave [overflow-wrap:anywhere]">
+                    {evento.local}
+                  </p>
                 )}
                 {(evento.preco || evento.esgotado) && (
                   <p className="flex flex-wrap items-center gap-x-3 gap-y-1">

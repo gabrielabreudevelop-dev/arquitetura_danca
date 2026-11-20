@@ -21,8 +21,6 @@ export function generateMetadata(): Metadata {
   };
 }
 
-const FRASE = "A dança é a linguagem escondida da alma.";
-
 const estiloLink =
   "-mx-2 inline-flex min-h-12 items-center px-2 font-semibold text-link underline decoration-link underline-offset-4 hover:decoration-2";
 
@@ -112,7 +110,9 @@ export default async function Inicio() {
       )}
 
       {destaque && (
-        <p className="font-assinatura font-semibold text-base">{FRASE}</p>
+        <p className="font-assinatura font-semibold text-base">
+          {ESTUDIO.slogan}
+        </p>
       )}
     </main>
   );

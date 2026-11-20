@@ -10,7 +10,7 @@ export function Marca({ href = "/" }: { href?: string }) {
   return (
     <Link
       href={href}
-      className="-mx-2 inline-flex min-h-12 items-center px-2 font-assinatura font-semibold text-base"
+      className="-mx-2 inline-flex min-h-12 items-center whitespace-nowrap px-2 font-assinatura font-semibold text-base"
     >
       {NOME_ESTUDIO}
     </Link>

@@ -4,7 +4,7 @@ const nextConfig: NextConfig = {
   output: "standalone",
   // As rotas de imagem de prévia leem a Raleway do disco em tempo de execução.
   outputFileTracingIncludes: {
-    "/og/*": [
+    "/og/**": [
       "./node_modules/@fontsource/raleway/files/raleway-latin-{400,700}-normal.woff",
     ],
   },

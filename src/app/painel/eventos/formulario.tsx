@@ -1,6 +1,11 @@
 "use client";
 
-import { type ChangeEvent, useActionState, useState } from "react";
+import {
+  type ChangeEvent,
+  type FormEvent,
+  useActionState,
+  useState,
+} from "react";
 import { TAMANHO_MAXIMO_CAPA } from "@/servidor/imagens/limite-capa";
 import { BotaoEnviar } from "../_formulario/botao-enviar";
 import { Campo } from "../_formulario/campo";
@@ -26,11 +31,15 @@ type Evento = {
 };
 
 const MENSAGEM_CAPA_GRANDE = "A imagem pode ter até 10 MB.";
+const MENSAGEM_CAPA_DE_NOVO = "Escolha a capa de novo.";
 
 /** Formulário de evento: novo (sem `evento`) ou edição. Com erro, mantém o que foi digitado. */
 export function FormularioEvento({ evento }: { evento?: Evento }) {
   const [estado, acao] = useActionState(salvarEventoAcao, ESTADO_INICIAL);
   const [erroCapaCliente, setErroCapaCliente] = useState<string>();
+  // O navegador esvazia o campo de arquivo quando o formulário volta com erro.
+  const [capaNoEnvio, setCapaNoEnvio] = useState(false);
+  const [capaReescolhida, setCapaReescolhida] = useState(false);
   const erros = estado.erros ?? {};
   const v = estado.valores;
   const slugFixo = evento ? !evento.slugEditavel : false;
@@ -42,6 +51,7 @@ export function FormularioEvento({ evento }: { evento?: Evento }) {
    */
   function conferirCapa(e: ChangeEvent<HTMLInputElement>) {
     const arquivo = e.target.files?.[0];
+    setCapaReescolhida(Boolean(arquivo));
     if (arquivo && arquivo.size > TAMANHO_MAXIMO_CAPA) {
       e.target.value = "";
       setErroCapaCliente(MENSAGEM_CAPA_GRANDE);
@@ -50,8 +60,25 @@ export function FormularioEvento({ evento }: { evento?: Evento }) {
     }
   }
 
+  function lembrarCapa(e: FormEvent<HTMLFormElement>) {
+    const arquivo = new FormData(e.currentTarget).get("capa");
+    setCapaNoEnvio(arquivo instanceof File && arquivo.size > 0);
+    setCapaReescolhida(false);
+  }
+
+  const pedirCapaDeNovo =
+    capaNoEnvio &&
+    !capaReescolhida &&
+    Object.keys(erros).length > 0 &&
+    !erros.capa;
+
   return (
-    <form action={acao} noValidate className="flex flex-col gap-6">
+    <form
+      action={acao}
+      onSubmit={lembrarCapa}
+      noValidate
+      className="flex flex-col gap-6"
+    >
       {evento && <input type="hidden" name="id" value={evento.id} />}
       <Campo
         nome="titulo"
@@ -136,7 +163,11 @@ export function FormularioEvento({ evento }: { evento?: Evento }) {
           nome="capa"
           rotulo={temCapa ? "Trocar capa" : "Capa"}
           tipo="arquivo"
-          erro={erroCapaCliente ?? erros.capa}
+          erro={
+            erroCapaCliente ??
+            erros.capa ??
+            (pedirCapaDeNovo ? MENSAGEM_CAPA_DE_NOVO : undefined)
+          }
           ajuda="JPEG, PNG ou WebP, até 10 MB. A imagem é mostrada inteira, sem cortes."
           atributos={{ accept: "image/jpeg,image/png,image/webp" }}
           aoMudar={conferirCapa}

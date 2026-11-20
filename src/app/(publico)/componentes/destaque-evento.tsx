@@ -45,7 +45,7 @@ export function DestaqueEvento({
   return (
     <article
       aria-labelledby={`evento-${evento.id}`}
-      className={`grid items-center gap-6 md:gap-12 ${colunas}`}
+      className={`grid min-w-0 items-center gap-6 md:gap-12 ${colunas}`}
     >
       {capa && (
         // No celular a capa tem altura limitada, para o título e o botão de
@@ -67,7 +67,7 @@ export function DestaqueEvento({
         </div>
       )}
 
-      <div className="flex max-w-prose flex-col gap-6">
+      <div className="flex min-w-0 max-w-prose flex-col gap-6">
         <div className="flex flex-col gap-3">
           {rotulo && (
             <p className="font-semibold">
@@ -79,7 +79,10 @@ export function DestaqueEvento({
             </p>
           )}
           <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
-            <Titulo id={`evento-${evento.id}`} className="text-titulo">
+            <Titulo
+              id={`evento-${evento.id}`}
+              className="text-titulo [overflow-wrap:anywhere]"
+            >
               {evento.titulo}
             </Titulo>
             {evento.esgotado && !capa && (
@@ -92,8 +95,14 @@ export function DestaqueEvento({
           <p className="font-semibold">
             {formatarDataEvento(evento.inicio, evento.fim)}
           </p>
-          {evento.local && <p className="text-texto-suave">{evento.local}</p>}
-          {evento.preco && <p>{evento.preco}</p>}
+          {evento.local && (
+            <p className="text-texto-suave [overflow-wrap:anywhere]">
+              {evento.local}
+            </p>
+          )}
+          {evento.preco && (
+            <p className="[overflow-wrap:anywhere]">{evento.preco}</p>
+          )}
         </div>
 
         <div className="flex flex-col gap-2 md:items-start">

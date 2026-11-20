@@ -4,6 +4,7 @@
  */
 export const ESTUDIO = {
   nome: "Arquitetura da Dança",
+  slogan: "A dança é a linguagem escondida da alma.",
   instagram: {
     usuario: "@arquiteturadadanca",
     url: "https://www.instagram.com/arquiteturadadanca/",

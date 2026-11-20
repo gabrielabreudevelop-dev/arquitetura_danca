@@ -3,7 +3,7 @@ import { join } from "node:path";
 import ts from "typescript";
 import { describe, expect, it } from "vitest";
 
-const RAIZ_PAINEL = join(process.cwd(), "src/app/painel");
+const RAIZ_FONTES = join(process.cwd(), "src");
 const CHAMADA = "await exigirAdministracao();";
 
 /** Todos os .ts/.tsx sob a pasta dada (menos testes), em qualquer profundidade. */
@@ -190,7 +190,7 @@ export function checarAcoes(texto: string): string[] {
   return problemas;
 }
 
-/** Problemas de um arquivo qualquer do painel (nome + texto). */
+/** Problemas de um arquivo qualquer de src/ (nome + texto). */
 export function checarFontePainel(nome: string, texto: string): string[] {
   const problemas: string[] = [];
   if (temUseServerNoTopo(texto)) {
@@ -199,7 +199,7 @@ export function checarFontePainel(nome: string, texto: string): string[] {
     problemas.push(...checarAcoes(texto));
   }
   if (temUseServerInline(texto))
-    problemas.push('"use server" dentro de função não é permitido no painel.');
+    problemas.push('"use server" dentro de função não é permitido.');
   return problemas;
 }
 
@@ -266,8 +266,8 @@ describe("checarFontePainel", () => {
   });
 });
 
-describe("arquivos do painel", () => {
-  const arquivos = acharFontes(RAIZ_PAINEL);
+describe("arquivos de src/", () => {
+  const arquivos = acharFontes(RAIZ_FONTES);
   it.each(arquivos)("%s respeita as regras de actions", (caminho) => {
     expect(checarFontePainel(caminho, readFileSync(caminho, "utf8"))).toEqual(
       [],

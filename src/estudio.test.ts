@@ -6,6 +6,10 @@ describe("ESTUDIO", () => {
     expect(ESTUDIO.nome).toBe("Arquitetura da Dança");
   });
 
+  it("tem o slogan do estúdio", () => {
+    expect(ESTUDIO.slogan).toBe("A dança é a linguagem escondida da alma.");
+  });
+
   it("guarda o WhatsApp no formato internacional, só com dígitos", () => {
     expect(ESTUDIO.whatsapp.numero).toMatch(/^55\d{10,11}$/);
   });

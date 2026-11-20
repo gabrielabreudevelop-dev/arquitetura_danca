@@ -145,7 +145,8 @@ export async function obterGradeDoRitmo(
       (a, b) =>
         a.moduloOrdem - b.moduloOrdem ||
         (a.dias[0] ?? 7) - (b.dias[0] ?? 7) ||
-        a.horarioInicio.localeCompare(b.horarioInicio),
+        a.horarioInicio.localeCompare(b.horarioInicio) ||
+        a.id.localeCompare(b.id),
     )
     .map(({ id, modulo: nome, dias, horarioInicio, horarioFim }) => ({
       id,
