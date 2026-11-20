@@ -45,9 +45,11 @@ export function DestaqueEvento({
   return (
     <article
       aria-labelledby={`evento-${evento.id}`}
-      className={`grid items-center gap-8 md:gap-12 ${colunas}`}
+      className={`grid items-center gap-6 md:gap-12 ${colunas}`}
     >
       {capa && (
+        // No celular a capa tem altura limitada, para o título e o botão de
+        // ingresso aparecerem já na primeira tela; a proporção é mantida.
         <div className="relative w-fit">
           {/* biome-ignore lint/performance/noImgElement: rota própria que serve os bytes do banco; largura e altura reais evitam o pulo do layout. */}
           <img
@@ -55,7 +57,7 @@ export function DestaqueEvento({
             alt={`Arte de divulgação de ${evento.titulo}`}
             width={capa.largura}
             height={capa.altura}
-            className="block h-auto max-h-[80svh] w-auto max-w-full"
+            className="block h-auto max-h-[45svh] w-auto max-w-full md:max-h-[80svh]"
           />
           {evento.esgotado && (
             <span className={`absolute top-0 left-0 ${estiloFaixa}`}>

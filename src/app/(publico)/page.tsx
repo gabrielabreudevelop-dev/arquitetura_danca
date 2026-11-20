@@ -52,18 +52,22 @@ export default async function Inicio() {
             </span>{" "}
             <span className="block">da alma.</span>
           </h1>
-          <div className="flex max-w-prose flex-col gap-2">
-            <p className="text-texto-suave">
-              Os próximos eventos do estúdio aparecem aqui assim que forem
-              marcados.
-            </p>
-            <a
-              href={ESTUDIO.instagram.url}
-              className={`${estiloLink} self-start`}
-            >
-              Acompanhe as novidades no Instagram
-            </a>
-          </div>
+          {/* Sem evento e sem ritmos, a página só tem a frase: o convite
+              para o Instagram é o caminho para as novidades. */}
+          {ritmos.length === 0 && (
+            <div className="flex max-w-prose flex-col gap-2">
+              <p className="text-texto-suave">
+                Os próximos eventos do estúdio aparecem aqui assim que forem
+                marcados.
+              </p>
+              <a
+                href={ESTUDIO.instagram.url}
+                className={`${estiloLink} self-start`}
+              >
+                Acompanhe as novidades no Instagram
+              </a>
+            </div>
+          )}
         </section>
       )}
 
