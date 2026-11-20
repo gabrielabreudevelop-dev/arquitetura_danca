@@ -1,0 +1,1578 @@
+{
+  "id": "97e437b4-c5dc-4de2-af08-64271f300c54",
+  "prevId": "7dcafb6b-57c2-4c6c-8072-71ac683b38cf",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "public.registros_consentimento": {
+      "name": "registros_consentimento",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "tipo_id": {
+          "name": "tipo_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "texto_id": {
+          "name": "texto_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "titular_id": {
+          "name": "titular_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "concedente_id": {
+          "name": "concedente_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "acao": {
+          "name": "acao",
+          "type": "acao_consentimento",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "canal": {
+          "name": "canal",
+          "type": "canal_consentimento",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "contato": {
+          "name": "contato",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "origem": {
+          "name": "origem",
+          "type": "origem_consentimento",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "ip": {
+          "name": "ip",
+          "type": "inet",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "navegador": {
+          "name": "navegador",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "criado_em": {
+          "name": "criado_em",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "registros_consentimento_titular_tipo_data": {
+          "name": "registros_consentimento_titular_tipo_data",
+          "columns": [
+            {
+              "expression": "titular_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "tipo_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "criado_em",
+              "isExpression": false,
+              "asc": false,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "registros_consentimento_tipo_id_tipos_consentimento_id_fk": {
+          "name": "registros_consentimento_tipo_id_tipos_consentimento_id_fk",
+          "tableFrom": "registros_consentimento",
+          "tableTo": "tipos_consentimento",
+          "columnsFrom": ["tipo_id"],
+          "columnsTo": ["id"],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "registros_consentimento_titular_id_pessoas_id_fk": {
+          "name": "registros_consentimento_titular_id_pessoas_id_fk",
+          "tableFrom": "registros_consentimento",
+          "tableTo": "pessoas",
+          "columnsFrom": ["titular_id"],
+          "columnsTo": ["id"],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "registros_consentimento_concedente_id_pessoas_id_fk": {
+          "name": "registros_consentimento_concedente_id_pessoas_id_fk",
+          "tableFrom": "registros_consentimento",
+          "tableTo": "pessoas",
+          "columnsFrom": ["concedente_id"],
+          "columnsTo": ["id"],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "registros_consentimento_texto_tipo_fk": {
+          "name": "registros_consentimento_texto_tipo_fk",
+          "tableFrom": "registros_consentimento",
+          "tableTo": "textos_consentimento",
+          "columnsFrom": ["texto_id", "tipo_id"],
+          "columnsTo": ["id", "tipo_id"],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.textos_consentimento": {
+      "name": "textos_consentimento",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "tipo_id": {
+          "name": "tipo_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "versao": {
+          "name": "versao",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "texto": {
+          "name": "texto",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "vigente_desde": {
+          "name": "vigente_desde",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "textos_consentimento_tipo_id_tipos_consentimento_id_fk": {
+          "name": "textos_consentimento_tipo_id_tipos_consentimento_id_fk",
+          "tableFrom": "textos_consentimento",
+          "tableTo": "tipos_consentimento",
+          "columnsFrom": ["tipo_id"],
+          "columnsTo": ["id"],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "textos_consentimento_tipo_versao_unico": {
+          "name": "textos_consentimento_tipo_versao_unico",
+          "nullsNotDistinct": false,
+          "columns": ["tipo_id", "versao"]
+        },
+        "textos_consentimento_id_tipo_unico": {
+          "name": "textos_consentimento_id_tipo_unico",
+          "nullsNotDistinct": false,
+          "columns": ["id", "tipo_id"]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.tipos_consentimento": {
+      "name": "tipos_consentimento",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "chave": {
+          "name": "chave",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "nome": {
+          "name": "nome",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "obrigatorio": {
+          "name": "obrigatorio",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "ativo": {
+          "name": "ativo",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "criado_em": {
+          "name": "criado_em",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "tipos_consentimento_chave_unique": {
+          "name": "tipos_consentimento_chave_unique",
+          "nullsNotDistinct": false,
+          "columns": ["chave"]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.matriculas": {
+      "name": "matriculas",
+      "schema": "",
+      "columns": {
+        "aluno_id": {
+          "name": "aluno_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "turma_id": {
+          "name": "turma_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "criado_em": {
+          "name": "criado_em",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "matriculas_turma_idx": {
+          "name": "matriculas_turma_idx",
+          "columns": [
+            {
+              "expression": "turma_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "matriculas_aluno_id_pessoas_id_fk": {
+          "name": "matriculas_aluno_id_pessoas_id_fk",
+          "tableFrom": "matriculas",
+          "tableTo": "pessoas",
+          "columnsFrom": ["aluno_id"],
+          "columnsTo": ["id"],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "matriculas_turma_id_turmas_id_fk": {
+          "name": "matriculas_turma_id_turmas_id_fk",
+          "tableFrom": "matriculas",
+          "tableTo": "turmas",
+          "columnsFrom": ["turma_id"],
+          "columnsTo": ["id"],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "matriculas_aluno_id_turma_id_pk": {
+          "name": "matriculas_aluno_id_turma_id_pk",
+          "columns": ["aluno_id", "turma_id"]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.modulos": {
+      "name": "modulos",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "nome": {
+          "name": "nome",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "ordem": {
+          "name": "ordem",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "ativo": {
+          "name": "ativo",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        }
+      },
+      "indexes": {
+        "modulos_nome_unico": {
+          "name": "modulos_nome_unico",
+          "columns": [
+            {
+              "expression": "lower(\"nome\")",
+              "asc": true,
+              "isExpression": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.ritmos": {
+      "name": "ritmos",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "nome": {
+          "name": "nome",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "ativo": {
+          "name": "ativo",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "criado_em": {
+          "name": "criado_em",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "ritmos_nome_unico": {
+          "name": "ritmos_nome_unico",
+          "columns": [
+            {
+              "expression": "lower(\"nome\")",
+              "asc": true,
+              "isExpression": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.turma_dias": {
+      "name": "turma_dias",
+      "schema": "",
+      "columns": {
+        "turma_id": {
+          "name": "turma_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "dia_semana": {
+          "name": "dia_semana",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "turma_dias_turma_id_turmas_id_fk": {
+          "name": "turma_dias_turma_id_turmas_id_fk",
+          "tableFrom": "turma_dias",
+          "tableTo": "turmas",
+          "columnsFrom": ["turma_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "turma_dias_turma_id_dia_semana_pk": {
+          "name": "turma_dias_turma_id_dia_semana_pk",
+          "columns": ["turma_id", "dia_semana"]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "turma_dias_dia_valido": {
+          "name": "turma_dias_dia_valido",
+          "value": "\"turma_dias\".\"dia_semana\" between 0 and 6"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.turmas": {
+      "name": "turmas",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "ritmo_id": {
+          "name": "ritmo_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "modulo_id": {
+          "name": "modulo_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "professor_id": {
+          "name": "professor_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "horario_inicio": {
+          "name": "horario_inicio",
+          "type": "time",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "horario_fim": {
+          "name": "horario_fim",
+          "type": "time",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "link_grupo_whatsapp": {
+          "name": "link_grupo_whatsapp",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "ativa": {
+          "name": "ativa",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "criado_em": {
+          "name": "criado_em",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "turmas_ritmo_idx": {
+          "name": "turmas_ritmo_idx",
+          "columns": [
+            {
+              "expression": "ritmo_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "turmas_professor_idx": {
+          "name": "turmas_professor_idx",
+          "columns": [
+            {
+              "expression": "professor_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "turmas_ritmo_id_ritmos_id_fk": {
+          "name": "turmas_ritmo_id_ritmos_id_fk",
+          "tableFrom": "turmas",
+          "tableTo": "ritmos",
+          "columnsFrom": ["ritmo_id"],
+          "columnsTo": ["id"],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "turmas_modulo_id_modulos_id_fk": {
+          "name": "turmas_modulo_id_modulos_id_fk",
+          "tableFrom": "turmas",
+          "tableTo": "modulos",
+          "columnsFrom": ["modulo_id"],
+          "columnsTo": ["id"],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "turmas_professor_id_pessoas_id_fk": {
+          "name": "turmas_professor_id_pessoas_id_fk",
+          "tableFrom": "turmas",
+          "tableTo": "pessoas",
+          "columnsFrom": ["professor_id"],
+          "columnsTo": ["id"],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "turmas_horario_valido": {
+          "name": "turmas_horario_valido",
+          "value": "\"turmas\".\"horario_fim\" > \"turmas\".\"horario_inicio\""
+        },
+        "turmas_link_whatsapp_valido": {
+          "name": "turmas_link_whatsapp_valido",
+          "value": "\"turmas\".\"link_grupo_whatsapp\" is null or \"turmas\".\"link_grupo_whatsapp\" like 'https://chat.whatsapp.com/%'"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.eventos": {
+      "name": "eventos",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "titulo": {
+          "name": "titulo",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "slug": {
+          "name": "slug",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "descricao": {
+          "name": "descricao",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "local": {
+          "name": "local",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "inicio": {
+          "name": "inicio",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "fim": {
+          "name": "fim",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "capa_url": {
+          "name": "capa_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "publicado": {
+          "name": "publicado",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "criado_em": {
+          "name": "criado_em",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "eventos_inicio_idx": {
+          "name": "eventos_inicio_idx",
+          "columns": [
+            {
+              "expression": "inicio",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "eventos_slug_unique": {
+          "name": "eventos_slug_unique",
+          "nullsNotDistinct": false,
+          "columns": ["slug"]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "eventos_slug_valido": {
+          "name": "eventos_slug_valido",
+          "value": "\"eventos\".\"slug\" ~ '^[a-z0-9]+(-[a-z0-9]+)*$'"
+        },
+        "eventos_fim_depois_do_inicio": {
+          "name": "eventos_fim_depois_do_inicio",
+          "value": "\"eventos\".\"fim\" is null or \"eventos\".\"fim\" > \"eventos\".\"inicio\""
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.presencas": {
+      "name": "presencas",
+      "schema": "",
+      "columns": {
+        "evento_id": {
+          "name": "evento_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "pessoa_id": {
+          "name": "pessoa_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "criado_em": {
+          "name": "criado_em",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "presencas_evento_id_eventos_id_fk": {
+          "name": "presencas_evento_id_eventos_id_fk",
+          "tableFrom": "presencas",
+          "tableTo": "eventos",
+          "columnsFrom": ["evento_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "presencas_pessoa_id_pessoas_id_fk": {
+          "name": "presencas_pessoa_id_pessoas_id_fk",
+          "tableFrom": "presencas",
+          "tableTo": "pessoas",
+          "columnsFrom": ["pessoa_id"],
+          "columnsTo": ["id"],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "presencas_evento_id_pessoa_id_pk": {
+          "name": "presencas_evento_id_pessoa_id_pk",
+          "columns": ["evento_id", "pessoa_id"]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.extensoes_periodo": {
+      "name": "extensoes_periodo",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "periodo_id": {
+          "name": "periodo_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "dias": {
+          "name": "dias",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "motivo": {
+          "name": "motivo",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "criado_por": {
+          "name": "criado_por",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "criado_em": {
+          "name": "criado_em",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "extensoes_periodo_periodo_id_periodos_contratados_id_fk": {
+          "name": "extensoes_periodo_periodo_id_periodos_contratados_id_fk",
+          "tableFrom": "extensoes_periodo",
+          "tableTo": "periodos_contratados",
+          "columnsFrom": ["periodo_id"],
+          "columnsTo": ["id"],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "extensoes_periodo_criado_por_pessoas_id_fk": {
+          "name": "extensoes_periodo_criado_por_pessoas_id_fk",
+          "tableFrom": "extensoes_periodo",
+          "tableTo": "pessoas",
+          "columnsFrom": ["criado_por"],
+          "columnsTo": ["id"],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "extensoes_periodo_dias_positivo": {
+          "name": "extensoes_periodo_dias_positivo",
+          "value": "\"extensoes_periodo\".\"dias\" > 0"
+        },
+        "extensoes_periodo_motivo_preenchido": {
+          "name": "extensoes_periodo_motivo_preenchido",
+          "value": "length(trim(\"extensoes_periodo\".\"motivo\")) > 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.periodos_contratados": {
+      "name": "periodos_contratados",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "aluno_id": {
+          "name": "aluno_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "inicio": {
+          "name": "inicio",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "fim": {
+          "name": "fim",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "criado_em": {
+          "name": "criado_em",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "periodos_contratados_aluno_id_pessoas_id_fk": {
+          "name": "periodos_contratados_aluno_id_pessoas_id_fk",
+          "tableFrom": "periodos_contratados",
+          "tableTo": "pessoas",
+          "columnsFrom": ["aluno_id"],
+          "columnsTo": ["id"],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "periodos_contratados_fim_apos_inicio": {
+          "name": "periodos_contratados_fim_apos_inicio",
+          "value": "\"periodos_contratados\".\"fim\" >= \"periodos_contratados\".\"inicio\""
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.pessoa_papeis": {
+      "name": "pessoa_papeis",
+      "schema": "",
+      "columns": {
+        "pessoa_id": {
+          "name": "pessoa_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "papel": {
+          "name": "papel",
+          "type": "papel",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "pessoa_papeis_pessoa_id_pessoas_id_fk": {
+          "name": "pessoa_papeis_pessoa_id_pessoas_id_fk",
+          "tableFrom": "pessoa_papeis",
+          "tableTo": "pessoas",
+          "columnsFrom": ["pessoa_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "pessoa_papeis_pessoa_id_papel_pk": {
+          "name": "pessoa_papeis_pessoa_id_papel_pk",
+          "columns": ["pessoa_id", "papel"]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.pessoas": {
+      "name": "pessoas",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "nome": {
+          "name": "nome",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "whatsapp": {
+          "name": "whatsapp",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "data_nascimento": {
+          "name": "data_nascimento",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "usuario_id": {
+          "name": "usuario_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "criado_em": {
+          "name": "criado_em",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "atualizado_em": {
+          "name": "atualizado_em",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "pessoas_email_unico": {
+          "name": "pessoas_email_unico",
+          "columns": [
+            {
+              "expression": "lower(\"email\")",
+              "asc": true,
+              "isExpression": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"pessoas\".\"email\" is not null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "pessoas_usuario_id_unique": {
+          "name": "pessoas_usuario_id_unique",
+          "nullsNotDistinct": false,
+          "columns": ["usuario_id"]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.responsabilidades": {
+      "name": "responsabilidades",
+      "schema": "",
+      "columns": {
+        "responsavel_id": {
+          "name": "responsavel_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "aluno_id": {
+          "name": "aluno_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "responsabilidades_responsavel_id_pessoas_id_fk": {
+          "name": "responsabilidades_responsavel_id_pessoas_id_fk",
+          "tableFrom": "responsabilidades",
+          "tableTo": "pessoas",
+          "columnsFrom": ["responsavel_id"],
+          "columnsTo": ["id"],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "responsabilidades_aluno_id_pessoas_id_fk": {
+          "name": "responsabilidades_aluno_id_pessoas_id_fk",
+          "tableFrom": "responsabilidades",
+          "tableTo": "pessoas",
+          "columnsFrom": ["aluno_id"],
+          "columnsTo": ["id"],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "responsabilidades_responsavel_id_aluno_id_pk": {
+          "name": "responsabilidades_responsavel_id_aluno_id_pk",
+          "columns": ["responsavel_id", "aluno_id"]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "responsabilidades_responsavel_diferente_do_aluno": {
+          "name": "responsabilidades_responsavel_diferente_do_aluno",
+          "value": "\"responsabilidades\".\"responsavel_id\" <> \"responsabilidades\".\"aluno_id\""
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.concessoes_acesso": {
+      "name": "concessoes_acesso",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "video_id": {
+          "name": "video_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "ritmo_id": {
+          "name": "ritmo_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "modulo_id": {
+          "name": "modulo_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "para_turma_id": {
+          "name": "para_turma_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "para_aluno_id": {
+          "name": "para_aluno_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "para_ritmo_id": {
+          "name": "para_ritmo_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "para_modulo_id": {
+          "name": "para_modulo_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "criado_em": {
+          "name": "criado_em",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "concessoes_acesso_aluno_idx": {
+          "name": "concessoes_acesso_aluno_idx",
+          "columns": [
+            {
+              "expression": "para_aluno_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "concessoes_acesso_turma_idx": {
+          "name": "concessoes_acesso_turma_idx",
+          "columns": [
+            {
+              "expression": "para_turma_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "concessoes_acesso_video_id_videos_id_fk": {
+          "name": "concessoes_acesso_video_id_videos_id_fk",
+          "tableFrom": "concessoes_acesso",
+          "tableTo": "videos",
+          "columnsFrom": ["video_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "concessoes_acesso_ritmo_id_ritmos_id_fk": {
+          "name": "concessoes_acesso_ritmo_id_ritmos_id_fk",
+          "tableFrom": "concessoes_acesso",
+          "tableTo": "ritmos",
+          "columnsFrom": ["ritmo_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "concessoes_acesso_modulo_id_modulos_id_fk": {
+          "name": "concessoes_acesso_modulo_id_modulos_id_fk",
+          "tableFrom": "concessoes_acesso",
+          "tableTo": "modulos",
+          "columnsFrom": ["modulo_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "concessoes_acesso_para_turma_id_turmas_id_fk": {
+          "name": "concessoes_acesso_para_turma_id_turmas_id_fk",
+          "tableFrom": "concessoes_acesso",
+          "tableTo": "turmas",
+          "columnsFrom": ["para_turma_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "concessoes_acesso_para_aluno_id_pessoas_id_fk": {
+          "name": "concessoes_acesso_para_aluno_id_pessoas_id_fk",
+          "tableFrom": "concessoes_acesso",
+          "tableTo": "pessoas",
+          "columnsFrom": ["para_aluno_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "concessoes_acesso_para_ritmo_id_ritmos_id_fk": {
+          "name": "concessoes_acesso_para_ritmo_id_ritmos_id_fk",
+          "tableFrom": "concessoes_acesso",
+          "tableTo": "ritmos",
+          "columnsFrom": ["para_ritmo_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "concessoes_acesso_para_modulo_id_modulos_id_fk": {
+          "name": "concessoes_acesso_para_modulo_id_modulos_id_fk",
+          "tableFrom": "concessoes_acesso",
+          "tableTo": "modulos",
+          "columnsFrom": ["para_modulo_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "concessoes_acesso_conteudo_unico": {
+          "name": "concessoes_acesso_conteudo_unico",
+          "value": "num_nonnulls(\"concessoes_acesso\".\"video_id\", \"concessoes_acesso\".\"ritmo_id\") = 1"
+        },
+        "concessoes_acesso_modulo_com_ritmo": {
+          "name": "concessoes_acesso_modulo_com_ritmo",
+          "value": "\"concessoes_acesso\".\"modulo_id\" is null or \"concessoes_acesso\".\"ritmo_id\" is not null"
+        },
+        "concessoes_acesso_destino_unico": {
+          "name": "concessoes_acesso_destino_unico",
+          "value": "num_nonnulls(\"concessoes_acesso\".\"para_turma_id\", \"concessoes_acesso\".\"para_aluno_id\", \"concessoes_acesso\".\"para_ritmo_id\", \"concessoes_acesso\".\"para_modulo_id\") = 1"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.video_pessoas": {
+      "name": "video_pessoas",
+      "schema": "",
+      "columns": {
+        "video_id": {
+          "name": "video_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "pessoa_id": {
+          "name": "pessoa_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "video_pessoas_video_id_videos_id_fk": {
+          "name": "video_pessoas_video_id_videos_id_fk",
+          "tableFrom": "video_pessoas",
+          "tableTo": "videos",
+          "columnsFrom": ["video_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "video_pessoas_pessoa_id_pessoas_id_fk": {
+          "name": "video_pessoas_pessoa_id_pessoas_id_fk",
+          "tableFrom": "video_pessoas",
+          "tableTo": "pessoas",
+          "columnsFrom": ["pessoa_id"],
+          "columnsTo": ["id"],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "video_pessoas_video_id_pessoa_id_pk": {
+          "name": "video_pessoas_video_id_pessoa_id_pk",
+          "columns": ["video_id", "pessoa_id"]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.videos": {
+      "name": "videos",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "professor_id": {
+          "name": "professor_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "ritmo_id": {
+          "name": "ritmo_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "modulo_id": {
+          "name": "modulo_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "titulo": {
+          "name": "titulo",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "descricao": {
+          "name": "descricao",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "ordem": {
+          "name": "ordem",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "bunny_video_id": {
+          "name": "bunny_video_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "status_video",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'rascunho'"
+        },
+        "autorizacao_imagem_confirmada_por": {
+          "name": "autorizacao_imagem_confirmada_por",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "autorizacao_imagem_confirmada_em": {
+          "name": "autorizacao_imagem_confirmada_em",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "criado_em": {
+          "name": "criado_em",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "atualizado_em": {
+          "name": "atualizado_em",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "videos_ritmo_modulo_idx": {
+          "name": "videos_ritmo_modulo_idx",
+          "columns": [
+            {
+              "expression": "ritmo_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "modulo_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "videos_professor_id_pessoas_id_fk": {
+          "name": "videos_professor_id_pessoas_id_fk",
+          "tableFrom": "videos",
+          "tableTo": "pessoas",
+          "columnsFrom": ["professor_id"],
+          "columnsTo": ["id"],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "videos_ritmo_id_ritmos_id_fk": {
+          "name": "videos_ritmo_id_ritmos_id_fk",
+          "tableFrom": "videos",
+          "tableTo": "ritmos",
+          "columnsFrom": ["ritmo_id"],
+          "columnsTo": ["id"],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "videos_modulo_id_modulos_id_fk": {
+          "name": "videos_modulo_id_modulos_id_fk",
+          "tableFrom": "videos",
+          "tableTo": "modulos",
+          "columnsFrom": ["modulo_id"],
+          "columnsTo": ["id"],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "videos_autorizacao_imagem_confirmada_por_pessoas_id_fk": {
+          "name": "videos_autorizacao_imagem_confirmada_por_pessoas_id_fk",
+          "tableFrom": "videos",
+          "tableTo": "pessoas",
+          "columnsFrom": ["autorizacao_imagem_confirmada_por"],
+          "columnsTo": ["id"],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "videos_bunny_video_id_unique": {
+          "name": "videos_bunny_video_id_unique",
+          "nullsNotDistinct": false,
+          "columns": ["bunny_video_id"]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "videos_publicacao_completa": {
+          "name": "videos_publicacao_completa",
+          "value": "\"videos\".\"status\" <> 'publicado' or (\"videos\".\"bunny_video_id\" is not null and \"videos\".\"autorizacao_imagem_confirmada_por\" is not null and \"videos\".\"autorizacao_imagem_confirmada_em\" is not null)"
+        }
+      },
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {
+    "public.acao_consentimento": {
+      "name": "acao_consentimento",
+      "schema": "public",
+      "values": ["aceite", "cancelamento"]
+    },
+    "public.canal_consentimento": {
+      "name": "canal_consentimento",
+      "schema": "public",
+      "values": ["whatsapp", "email", "plataforma"]
+    },
+    "public.origem_consentimento": {
+      "name": "origem_consentimento",
+      "schema": "public",
+      "values": [
+        "formulario_ativacao",
+        "pagina_preferencias",
+        "mensagem_whatsapp",
+        "pagina_evento"
+      ]
+    },
+    "public.papel": {
+      "name": "papel",
+      "schema": "public",
+      "values": [
+        "administracao",
+        "atendente",
+        "professor",
+        "aluno",
+        "responsavel"
+      ]
+    },
+    "public.status_video": {
+      "name": "status_video",
+      "schema": "public",
+      "values": ["rascunho", "publicado"]
+    }
+  },
+  "schemas": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}

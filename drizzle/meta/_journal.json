@@ -50,6 +50,13 @@
       "when": 1795172515555,
       "tag": "0006_chave_consentimento_imutavel",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1795172673329,
+      "tag": "0007_videos_eventos",
+      "breakpoints": true
     }
   ]
 }

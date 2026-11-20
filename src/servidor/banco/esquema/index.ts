@@ -2,5 +2,7 @@
 // conforme forem criadas.
 export * from "./consentimentos";
 export * from "./estrutura";
+export * from "./eventos";
 export * from "./periodos";
 export * from "./pessoas";
+export * from "./videos";
