@@ -59,7 +59,8 @@ Faça isto numa máquina com o repositório, Node 26 e pnpm (`pnpm install`), e 
 
    - o histórico de migrações do banco tem o mesmo número de migrações da pasta `drizzle/`;
    - os seis tipos de consentimento existem (`termos_uso`, `politica_privacidade`, `whatsapp_servico`, `whatsapp_novidades`, `lista_quem_vai`, `uso_imagem`);
-   - os cinco gatilhos de imutabilidade existem e estão ativos, e um `TRUNCATE` de teste, dentro de uma transação sempre desfeita, é recusado.
+   - os cinco gatilhos de imutabilidade existem, estão ativos e têm a função e o tipo esperados;
+   - sondas reais, dentro de uma transação sempre desfeita (com dados de teste descartáveis), provam que `UPDATE`, `DELETE` e `TRUNCATE` nas tabelas de consentimento, e a troca de chave de um tipo, são recusados.
 
 4. Resultado esperado, com código de saída 0:
 
@@ -72,7 +73,7 @@ Faça isto numa máquina com o repositório, Node 26 e pnpm (`pnpm install`), e 
 Observações:
 
 - A versão (principal) do `pg_restore` precisa ser **igual ou maior** que a do servidor que gerou o dump. A produção usa Postgres 17, então use `pg_restore` 17 ou mais novo (`pg_restore --version`). Com versão menor, o `pg_restore` recusa o arquivo.
-- O banco de destino deve estar vazio. O `--clean --if-exists` pode avisar de objetos inexistentes; isso é normal num banco vazio.
+- O banco de destino deve estar vazio. O `pg_restore` pode imprimir erros não fatais e ainda assim restaurar o essencial; leia as mensagens e confie no resultado do verificador, não na ausência de avisos.
 - Dentro da imagem de produção (`dist/verificar-restauracao.js`), o verificador também roda: `node dist/verificar-restauracao.js <url>`. O script `restaurar-backup.sh` usa esse arquivo quando ele existe e, caso contrário, `pnpm backup:verificar`.
 - Apague o banco de restauração quando terminar: ele contém dados reais de alunos.
 

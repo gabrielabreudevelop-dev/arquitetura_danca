@@ -20,12 +20,16 @@ url="$2"
 # Roda sempre da raiz do projeto: o verificador lê drizzle/meta/_journal.json.
 cd "$(dirname "$0")/.."
 
-# Sem --exit-on-error: o --clean --if-exists pode avisar de objetos que não
-# existem num banco vazio; o verificador é quem decide se o resultado serve.
+# Sem --exit-on-error: o pg_restore pode terminar com erros não fatais (por
+# exemplo, extensões ou objetos que o banco de destino não tem) e ainda
+# restaurar o essencial. O verificador é quem decide se o resultado serve; leia
+# as mensagens do pg_restore acima dele.
 pg_restore --no-owner --clean --if-exists --dbname "$url" "$dump"
 
 if [ -f dist/verificar-restauracao.js ]; then
+  echo "Verificando com: node dist/verificar-restauracao.js"
   node dist/verificar-restauracao.js "$url"
 else
+  echo "Verificando com: pnpm backup:verificar"
   pnpm backup:verificar -- "$url"
 fi
