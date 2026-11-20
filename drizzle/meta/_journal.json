@@ -43,6 +43,13 @@
       "when": 1795172314621,
       "tag": "0005_tipos_consentimento_iniciais",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1795172515555,
+      "tag": "0006_chave_consentimento_imutavel",
+      "breakpoints": true
     }
   ]
 }

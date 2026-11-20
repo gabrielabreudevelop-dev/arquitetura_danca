@@ -175,3 +175,51 @@ it("recusa registro cujo texto pertence a outro tipo", async () => {
     "23503",
   );
 });
+
+it("bloqueia TRUNCATE ... CASCADE vindo de pessoas e de tipos_consentimento", async () => {
+  await criarRegistro();
+  await expect(banco.sql("truncate pessoas cascade")).rejects.toThrow(MENSAGEM);
+  await expect(
+    banco.sql("truncate tipos_consentimento cascade"),
+  ).rejects.toThrow(MENSAGEM);
+});
+
+it("impede remover o concedente (responsável) que tem registro", async () => {
+  const tipo = await criarTipo();
+  const texto = await criarTexto(tipo.id);
+  const aluno = await criarPessoa();
+  const responsavel = await criarPessoa();
+  await banco.db.insert(registrosConsentimento).values({
+    tipoId: tipo.id,
+    textoId: texto.id,
+    titularId: aluno.id,
+    concedenteId: responsavel.id,
+    acao: "aceite",
+    canal: "whatsapp",
+    contato: "+5511999999999",
+    origem: "mensagem_whatsapp",
+  });
+  await esperarErroPg(
+    banco.db.delete(pessoas).where(eq(pessoas.id, responsavel.id)),
+    "23503",
+  );
+});
+
+it("não deixa trocar a chave de um tipo, mas permite editar o nome", async () => {
+  const tipo = await criarTipo();
+  await expect(
+    banco.sql(
+      `update tipos_consentimento set chave = 'outra_${randomUUID()}' where id = '${tipo.id}'`,
+    ),
+  ).rejects.toThrow(/chave do tipo de consentimento não pode ser alterada/);
+  await banco.db
+    .update(tiposConsentimento)
+    .set({ nome: "Novo nome" })
+    .where(eq(tiposConsentimento.id, tipo.id));
+  const [lido] = await banco.db
+    .select()
+    .from(tiposConsentimento)
+    .where(eq(tiposConsentimento.id, tipo.id));
+  expect(lido.nome).toBe("Novo nome");
+  expect(lido.chave).toBe(tipo.chave);
+});
