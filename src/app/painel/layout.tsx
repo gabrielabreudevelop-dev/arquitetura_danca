@@ -13,7 +13,7 @@ export default async function LayoutPainel({
   await exigirPapel(["administracao", "atendente"]);
   return (
     <div className="flex min-h-dvh flex-col">
-      <header className="border-borda/40 border-b">
+      <header className="border-linha border-b">
         <div className="mx-auto flex min-h-16 w-full max-w-5xl items-center justify-between gap-4 px-6 md:px-12">
           <Marca href="/painel" />
           <BotaoSair />

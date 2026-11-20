@@ -13,7 +13,7 @@ export function BotaoSair() {
     <button
       type="button"
       disabled={saindo}
-      className="-mx-2 min-h-12 px-2 underline decoration-borda underline-offset-4 hover:decoration-texto disabled:cursor-wait disabled:text-texto/70"
+      className="-mx-2 min-h-12 px-2 text-link underline decoration-link underline-offset-4 hover:decoration-2 disabled:cursor-wait disabled:text-texto-suave"
       onClick={async () => {
         setSaindo(true);
         await clienteAuth.signOut();
