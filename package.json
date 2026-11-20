@@ -12,9 +12,12 @@
     "teste": "vitest run --project unidade",
     "teste:integracao": "vitest run --project integracao",
     "db:gerar": "drizzle-kit generate",
-    "db:migrar": "tsx scripts/migrar.ts"
+    "db:migrar": "tsx scripts/migrar.ts",
+    "equipe:criar": "tsx --env-file-if-exists=.env.local scripts/criar-membro-equipe.ts"
   },
   "dependencies": {
+    "@better-auth/drizzle-adapter": "1.7.27",
+    "better-auth": "1.7.27",
     "drizzle-orm": "^0.45.4",
     "next": "16.4.6",
     "pg": "^8.23.1",

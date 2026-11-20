@@ -10,6 +10,7 @@ import {
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
+import { user } from "./auth";
 
 /** Papéis de pessoa: enum fixo (ao contrário de ritmos, módulos e consentimentos). */
 export const papel = pgEnum("papel", [
@@ -30,8 +31,11 @@ export const pessoas = pgTable(
     email: text("email"),
     whatsapp: text("whatsapp"),
     dataNascimento: date("data_nascimento"),
-    // A chave estrangeira para `user.id` entra na Tarefa 8.
-    usuarioId: text("usuario_id").unique(),
+    // Conta de login (Better Auth). Só a equipe tem; não se apaga o usuário
+    // enquanto houver pessoa ligada a ele.
+    usuarioId: text("usuario_id")
+      .unique()
+      .references(() => user.id, { onDelete: "restrict" }),
     criadoEm: timestamp("criado_em", { withTimezone: true })
       .notNull()
       .defaultNow(),
