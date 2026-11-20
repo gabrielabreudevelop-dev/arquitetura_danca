@@ -20,16 +20,26 @@ url="$2"
 # Roda sempre da raiz do projeto: o verificador lê drizzle/meta/_journal.json.
 cd "$(dirname "$0")/.."
 
-# Sem --exit-on-error: o pg_restore pode terminar com erros não fatais (por
-# exemplo, extensões ou objetos que o banco de destino não tem) e ainda
-# restaurar o essencial. O verificador é quem decide se o resultado serve; leia
-# as mensagens do pg_restore acima dele.
-pg_restore --no-owner --clean --if-exists --dbname "$url" "$dump"
+# Recusa alvo que já tenha tabelas: a restauração só vale num banco vazio.
+tabelas="$(psql "$url" -v ON_ERROR_STOP=1 -tA \
+  -c "select count(*) from information_schema.tables where table_schema = 'public'")" \
+  || { echo "Não foi possível consultar o banco de destino." >&2; exit 2; }
+if [ "$tabelas" != "0" ]; then
+  echo "O banco de destino não está vazio (${tabelas} tabela(s) no schema public). Use um banco novo e vazio." >&2
+  exit 2
+fi
 
-if [ -f dist/verificar-restauracao.js ]; then
-  echo "Verificando com: node dist/verificar-restauracao.js"
-  node dist/verificar-restauracao.js "$url"
+# Sem --exit-on-error e sem --clean: o pg_restore pode sair com código 1 por
+# erros não fatais (objetos ignorados) e ainda restaurar o essencial. O
+# verificador decide se o resultado serve; o código de saída dele é o do script.
+if ! pg_restore --no-owner --no-privileges --dbname "$url" "$dump"; then
+  echo "pg_restore terminou com erros; o verificador decide se a restauração vale." >&2
+fi
+
+if [ -f package.json ] && command -v pnpm >/dev/null 2>&1; then
+  echo "Verificando com: pnpm backup:verificar --"
+  exec pnpm backup:verificar -- "$url"
 else
-  echo "Verificando com: pnpm backup:verificar"
-  pnpm backup:verificar -- "$url"
+  echo "Verificando com: node dist/verificar-restauracao.js"
+  exec node dist/verificar-restauracao.js "$url"
 fi
