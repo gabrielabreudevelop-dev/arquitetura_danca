@@ -1,0 +1,1 @@
+-- Migração inicial vazia: apenas cria o histórico de migrações do banco.
