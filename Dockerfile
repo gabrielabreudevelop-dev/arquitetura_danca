@@ -2,7 +2,8 @@
 FROM node:26-slim AS base
 ENV PNPM_HOME=/pnpm
 ENV PATH=$PNPM_HOME:$PATH
-RUN corepack enable
+# Node 25+ não traz mais o Corepack. Mantenha a versão igual à de `packageManager` no package.json.
+RUN npm install -g pnpm@10.28.0
 WORKDIR /app
 
 FROM base AS dependencias

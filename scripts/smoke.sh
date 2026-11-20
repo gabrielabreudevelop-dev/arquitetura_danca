@@ -24,7 +24,7 @@ docker run -d --name "$banco" --network "$rede" \
   -e POSTGRES_PASSWORD="$senha" postgres:17 >/dev/null
 
 for _ in $(seq 1 30); do
-  if docker exec "$banco" pg_isready -U postgres >/dev/null 2>&1; then
+  if docker exec "$banco" pg_isready -h 127.0.0.1 -U postgres >/dev/null 2>&1; then
     pronto=1
     break
   fi
@@ -32,8 +32,17 @@ for _ in $(seq 1 30); do
 done
 [ "${pronto:-0}" = 1 ] || { echo "Postgres não ficou pronto." >&2; exit 1; }
 
-docker run --rm --network "$rede" -e DATABASE_URL="$url" \
-  "$imagem" node dist/migrar.js >&2
+# O Postgres reinicia ao fim da inicialização; tenta a migração algumas vezes.
+migrou=0
+for _ in $(seq 1 5); do
+  if docker run --rm --network "$rede" -e DATABASE_URL="$url" \
+    "$imagem" node dist/migrar.js >&2; then
+    migrou=1
+    break
+  fi
+  sleep 2
+done
+[ "$migrou" = 1 ] || { echo "Migração falhou." >&2; exit 1; }
 
 docker run -d --name "$app" --network "$rede" \
   -e DATABASE_URL="$url" \
