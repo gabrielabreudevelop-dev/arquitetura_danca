@@ -132,6 +132,60 @@ it("barra a 6ª tentativa errada em 60 s do mesmo IP", async () => {
     ip,
   );
   expect(sexta.status).toBe(429);
+
+  // Outro IP tem balde próprio: não pode herdar o bloqueio (nem em produção).
+  const outroIp = await postar(
+    authLimite,
+    "/sign-in/email",
+    { email, password: "senha-errada-123" },
+    "198.51.100.8",
+  );
+  expect(outroIp.status).toBe(401);
+});
+
+it("com proxy confiável, o X-Forwarded-For com vários IPs usa o do cliente", async () => {
+  const authProxy = criarAuth(banco.db, {
+    ...opcoes,
+    proxiesConfiaveis: ["192.0.2.10"],
+  });
+  const email = emailUnico("proxy");
+  await criarMembroEquipe(
+    banco.db,
+    { nome: "Proxy", email, senha: "senha-bem-longa-123", papel: "atendente" },
+    opcoes,
+  );
+  const errada = { email, password: "senha-errada-123" };
+  // Cliente A passa pelo proxy confiável 192.0.2.10.
+  for (let i = 0; i < 5; i++) {
+    const r = await postar(
+      authProxy,
+      "/sign-in/email",
+      errada,
+      "198.51.100.20, 192.0.2.10",
+    );
+    expect(r.status).toBe(401);
+  }
+  expect(
+    (
+      await postar(
+        authProxy,
+        "/sign-in/email",
+        errada,
+        "198.51.100.20, 192.0.2.10",
+      )
+    ).status,
+  ).toBe(429);
+  // Cliente B, pelo mesmo proxy, tem outro balde.
+  expect(
+    (
+      await postar(
+        authProxy,
+        "/sign-in/email",
+        errada,
+        "198.51.100.21, 192.0.2.10",
+      )
+    ).status,
+  ).toBe(401);
 });
 
 it("e-mail já usado por outra pessoa é recusado", async () => {

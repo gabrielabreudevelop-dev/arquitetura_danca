@@ -21,4 +21,21 @@ describe("lerAmbiente", () => {
       lerAmbiente({ ...valido, BETTER_AUTH_SECRET: "curto" }),
     ).toThrow(/BETTER_AUTH_SECRET/);
   });
+  it("lista de proxies confiáveis é opcional", () => {
+    expect(lerAmbiente(valido).PROXIES_CONFIAVEIS).toBeUndefined();
+    expect(
+      lerAmbiente({ ...valido, PROXIES_CONFIAVEIS: "" }).PROXIES_CONFIAVEIS,
+    ).toBeUndefined();
+  });
+  it("separa os proxies confiáveis por vírgula", () => {
+    expect(
+      lerAmbiente({ ...valido, PROXIES_CONFIAVEIS: "10.0.0.1, 172.16.0.0/12" })
+        .PROXIES_CONFIAVEIS,
+    ).toEqual(["10.0.0.1", "172.16.0.0/12"]);
+  });
+  it("recusa entrada vazia na lista de proxies", () => {
+    expect(() =>
+      lerAmbiente({ ...valido, PROXIES_CONFIAVEIS: "10.0.0.1,,10.0.0.2" }),
+    ).toThrow(/PROXIES_CONFIAVEIS/);
+  });
 });

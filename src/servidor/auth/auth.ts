@@ -10,6 +10,8 @@ type OpcoesAuth = {
   secret?: string;
   /** Padrão: BETTER_AUTH_URL do ambiente. */
   baseURL?: string;
+  /** IPs/CIDRs dos proxies que acrescentam ao X-Forwarded-For. Padrão: PROXIES_CONFIAVEIS. */
+  proxiesConfiaveis?: string[];
 };
 
 /**
@@ -31,7 +33,20 @@ export function criarAuth(db: Banco, opcoes: OpcoesAuth = {}) {
       storage: "memory",
       customRules: { "/sign-in/email": { window: 60, max: 5 } },
     },
-    advanced: { ipAddress: { ipAddressHeaders: ["x-forwarded-for"] } },
+    // O limite de tentativas é por IP. Em produção, se o IP não puder ser
+    // determinado (cabeçalho ausente ou com mais de um valor), todos caem no
+    // mesmo balde e uma pessoa trava o login de toda a equipe. No deploy
+    // suportado (Coolify), o Traefik substitui o X-Forwarded-For recebido por
+    // um único IP de cliente (entrypoint sem forwardedHeaders.trustedIPs), e
+    // nada mais é preciso. PROXIES_CONFIAVEIS serve para um hop extra (CDN,
+    // outro proxy) que acrescenta ao cabeçalho: com os IPs/CIDRs desses
+    // proxies, o Better Auth descarta os hops confiáveis e usa o do cliente.
+    advanced: {
+      ipAddress: {
+        ipAddressHeaders: ["x-forwarded-for"],
+        trustedProxies: opcoes.proxiesConfiaveis ?? ambiente.PROXIES_CONFIAVEIS,
+      },
+    },
     plugins: [nextCookies()],
   });
 }
