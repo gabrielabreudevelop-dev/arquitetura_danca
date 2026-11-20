@@ -5,6 +5,7 @@ import {
   linkGrupoWhatsappValido,
   linkIngresso,
   linkWhatsapp,
+  urlDoEvento,
 } from "./eventos";
 
 describe("eventoJaPassou", () => {
@@ -81,5 +82,16 @@ describe("linkGrupoWhatsappValido", () => {
     ]) {
       expect(linkGrupoWhatsappValido(ruim)).toBe(false);
     }
+  });
+});
+
+describe("urlDoEvento", () => {
+  it("monta o endereço absoluto a partir da base", () => {
+    expect(urlDoEvento("baile", "https://app.exemplo.com.br")).toBe(
+      "https://app.exemplo.com.br/eventos/baile",
+    );
+    expect(urlDoEvento("baile", "https://app.exemplo.com.br/")).toBe(
+      "https://app.exemplo.com.br/eventos/baile",
+    );
   });
 });

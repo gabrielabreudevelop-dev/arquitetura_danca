@@ -1,4 +1,5 @@
 import { ESTUDIO } from "@/estudio";
+import { ambiente } from "../ambiente";
 import { fimDoDiaEmSaoPaulo, formatarDataCurta } from "./texto";
 
 export function eventoJaPassou(
@@ -26,6 +27,14 @@ export function linkIngresso(evento: {
   return linkWhatsapp(
     `Olá! Quero garantir meu ingresso para o ${evento.titulo} (${formatarDataCurta(evento.inicio)}). Vi no site do estúdio.`,
   );
+}
+
+/** Endereço público absoluto da página de um evento. */
+export function urlDoEvento(
+  slug: string,
+  base: string = ambiente.BETTER_AUTH_URL,
+): string {
+  return new URL(`/eventos/${slug}`, base).toString();
 }
 
 export function linkCompartilharWhatsapp(texto: string, url: string): string {
