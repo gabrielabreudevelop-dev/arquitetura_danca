@@ -2,6 +2,7 @@ import { and, eq } from "drizzle-orm";
 import sharp from "sharp";
 import type { Banco } from "../banco/cliente";
 import { eventos, imagens } from "../banco/esquema";
+import { TAMANHO_MAXIMO_CAPA } from "./limite-capa";
 
 /** Erro com mensagem pronta para mostrar ao usuário. */
 export class ErroCapa extends Error {
@@ -11,7 +12,7 @@ export class ErroCapa extends Error {
   }
 }
 
-export const TAMANHO_MAXIMO_CAPA = 10 * 1024 * 1024;
+export { TAMANHO_MAXIMO_CAPA };
 
 const LADO_MAXIMO = 1200;
 const ALVO_BYTES = 300 * 1024;

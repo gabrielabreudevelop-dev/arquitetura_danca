@@ -32,3 +32,10 @@ export async function executarTraduzindo<T>(
     throw erro;
   }
 }
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** O texto tem o formato de um uuid? Evita mandar lixo ao Postgres (erro 22P02). */
+export function ehUuid(valor: string): boolean {
+  return UUID.test(valor);
+}

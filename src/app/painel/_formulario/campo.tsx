@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { ChangeEventHandler, ReactNode } from "react";
 
 const estiloControle =
   "min-h-12 w-full rounded-sm border border-borda bg-transparent px-3 text-base aria-invalid:border-erro";
@@ -10,7 +10,7 @@ type PropsCampo = {
   rotulo: string;
   /**
    * Tipo do controle. `"texto"` (padrão), `"email"`, `"numero"`, `"data"`,
-   * `"hora"`, `"url"` e `"senha"` geram `<input>`; `"area"` gera `<textarea>`;
+   * `"hora"`, `"datahora"` (data e hora), `"url"` e `"senha"` geram `<input>`; `"area"` gera `<textarea>`;
    * `"selecao"` gera `<select>` (opções em `children`, como `<option>`);
    * `"caixa"` gera checkbox com o rótulo ao lado; `"arquivo"` gera `<input type=file>`.
    */
@@ -20,6 +20,7 @@ type PropsCampo = {
     | "numero"
     | "data"
     | "hora"
+    | "datahora"
     | "url"
     | "senha"
     | "area"
@@ -37,6 +38,8 @@ type PropsCampo = {
   obrigatorio?: boolean;
   /** Atributos extras do controle: `accept`, `min`, `max`, `maxLength`, `rows`, `autoComplete`... */
   atributos?: Record<string, string | number | boolean | undefined>;
+  /** Chamado quando o valor muda (ex.: conferir o tamanho de um arquivo escolhido). */
+  aoMudar?: ChangeEventHandler<HTMLInputElement>;
   /** Opções (`<option>`) quando `tipo="selecao"`. */
   children?: ReactNode;
 };
@@ -47,6 +50,7 @@ const TIPOS_INPUT = {
   numero: "number",
   data: "date",
   hora: "time",
+  datahora: "datetime-local",
   url: "url",
   senha: "password",
   arquivo: "file",
@@ -67,6 +71,7 @@ export function Campo({
   erro,
   obrigatorio,
   atributos,
+  aoMudar,
   children,
 }: PropsCampo) {
   const idAjuda = ajuda ? `${nome}-ajuda` : undefined;
@@ -110,6 +115,7 @@ export function Campo({
     controle = (
       <input
         type="file"
+        onChange={aoMudar}
         {...comum}
         className={`${estiloControle} py-2 file:mr-3 file:min-h-8 file:rounded-sm file:border-0 file:bg-fundo-suave file:px-3 file:font-semibold file:text-texto`}
       />
