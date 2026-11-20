@@ -171,9 +171,13 @@ export async function salvarEvento(
   return executarTraduzindo(
     () =>
       db.transaction(async (tx): Promise<Resultado<{ id: string }>> => {
-        const novaCapaId = capaProcessada
-          ? await gravarCapa(tx as unknown as Banco, capaProcessada)
-          : null;
+        // A imagem só é gravada depois de todas as checagens que devolvem erro
+        // sem lançar: devolver um valor confirma a transação e deixaria a
+        // imagem órfã.
+        const gravarNovaCapa = async () =>
+          capaProcessada
+            ? gravarCapa(tx as unknown as Banco, capaProcessada)
+            : null;
 
         if (!id) {
           if (!slugDigitado) {
@@ -187,7 +191,7 @@ export async function salvarEvento(
             .values({
               ...valores,
               slug: slugDigitado,
-              capaId: novaCapaId,
+              capaId: await gravarNovaCapa(),
               primeiraPublicacaoEm: publicado ? new Date() : null,
             })
             .returning({ id: eventos.id });
@@ -215,7 +219,8 @@ export async function salvarEvento(
             erros: { slug: "Informe um endereço com letras ou números." },
           };
         }
-        const capaId = novaCapaId ?? (dados.removerCapa ? null : atual.capaId);
+        const capaId =
+          (await gravarNovaCapa()) ?? (dados.removerCapa ? null : atual.capaId);
         await tx
           .update(eventos)
           .set({

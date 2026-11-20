@@ -1,6 +1,5 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { exigirAdministracao } from "@/servidor/auth/acesso";
 import { obterBanco } from "@/servidor/banco/cliente";
@@ -12,13 +11,6 @@ import {
 } from "@/servidor/cadastros/eventos";
 import type { EstadoFormulario } from "../_formulario/estado";
 import { lerTexto } from "../_formulario/ler-texto";
-
-/** Páginas públicas e do painel que mostram eventos. */
-function atualizarPaginas() {
-  revalidatePath("/");
-  revalidatePath("/eventos", "layout");
-  revalidatePath("/painel/eventos", "layout");
-}
 
 export async function salvarEventoAcao(
   _estado: EstadoFormulario,
@@ -66,7 +58,6 @@ export async function salvarEventoAcao(
     capa,
   });
   if (!resultado.ok) return { erros: resultado.erros, valores };
-  atualizarPaginas();
   redirect("/painel/eventos");
 }
 
@@ -74,9 +65,9 @@ export async function salvarEventoAcao(
 export async function alternarEsgotadoAcao(form: FormData): Promise<void> {
   await exigirAdministracao();
   const id = lerTexto(form, "id");
-  if (!ehUuid(id)) return;
-  await alternarEsgotado(obterBanco(), id);
-  atualizarPaginas();
+  if (ehUuid(id)) await alternarEsgotado(obterBanco(), id);
+  // Redirecionar para a própria lista é o que a atualiza depois da action.
+  redirect("/painel/eventos");
 }
 
 /** Sem erro, volta para a lista; evento publicado volta para a edição com o aviso. */
@@ -86,6 +77,5 @@ export async function excluirEventoAcao(form: FormData): Promise<void> {
   if (!ehUuid(id)) redirect("/painel/eventos");
   const resultado = await excluirEvento(obterBanco(), id);
   if (!resultado.ok) redirect(`/painel/eventos/${id}?erro=publicado`);
-  atualizarPaginas();
   redirect("/painel/eventos");
 }

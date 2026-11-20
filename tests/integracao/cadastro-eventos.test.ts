@@ -294,6 +294,51 @@ it("erro depois de processar a capa não deixa imagem órfã", async () => {
   expect(await total(imagens)).toBe(antes);
 });
 
+it("slug vazio na criação, com capa, não deixa imagem órfã", async () => {
+  const antes = await total(imagens);
+  const r = await salvarEvento(
+    banco.db,
+    dados({ titulo: "!!!", slug: "", capa: await png() }),
+  );
+  expect(r).toEqual({
+    ok: false,
+    erros: { slug: "Informe um endereço com letras ou números." },
+  });
+  expect(await total(imagens)).toBe(antes);
+});
+
+it("editar evento inexistente ou limpar o slug, com capa, não deixa imagem órfã", async () => {
+  const antes = await total(imagens);
+  const inexistente = await salvarEvento(
+    banco.db,
+    dados({
+      id: "00000000-0000-4000-8000-000000000000",
+      capa: await png(),
+    }),
+  );
+  expect(inexistente).toEqual({
+    ok: false,
+    erros: { _: "Evento não encontrado." },
+  });
+  const naoUuid = await salvarEvento(
+    banco.db,
+    dados({ id: "lixo", capa: await png() }),
+  );
+  expect(naoUuid.ok).toBe(false);
+
+  const criado = await salvarEvento(banco.db, dados());
+  if (!criado.ok) throw new Error("falhou");
+  const semSlug = await salvarEvento(
+    banco.db,
+    dados({ id: criado.valor.id, titulo: "???", slug: "", capa: await png() }),
+  );
+  expect(semSlug).toEqual({
+    ok: false,
+    erros: { slug: "Informe um endereço com letras ou números." },
+  });
+  expect(await total(imagens)).toBe(antes);
+});
+
 it("alternarEsgotado inverte o valor a cada chamada", async () => {
   const e = await criarEvento(banco.db);
   expect(await alternarEsgotado(banco.db, e.id)).toEqual({
