@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { exigirAdministracao } from "@/servidor/auth/acesso";
 import { obterBanco } from "@/servidor/banco/cliente";
 import { modulos } from "@/servidor/banco/esquema";
+import { MENSAGEM_EM_USO } from "@/servidor/cadastros/resultado";
 import { MensagemErroGeral } from "../../_formulario/mensagem";
 import { excluirModuloAcao } from "../acoes";
 import { FormularioModulo } from "../formulario";
@@ -56,11 +57,7 @@ export default async function EditarModulo({
           em vez de excluir.
         </p>
         <MensagemErroGeral
-          erro={
-            erro === "em-uso"
-              ? "Está em uso; desative em vez de excluir."
-              : undefined
-          }
+          erro={erro === "em-uso" ? MENSAGEM_EM_USO : undefined}
         />
         <button
           type="submit"

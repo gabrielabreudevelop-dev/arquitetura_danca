@@ -15,6 +15,9 @@ export function errosDeZod(erro: z.ZodError): Record<string, string> {
   return erros;
 }
 
+/** Mensagem do erro geral quando a exclusão esbarra numa chave estrangeira. */
+export const MENSAGEM_EM_USO = "Está em uso; desative em vez de excluir.";
+
 type ErroPg = { code?: string; constraint?: string };
 
 /** Acha o erro do pg, mesmo embrulhado pelo Drizzle (`cause`). */
@@ -42,7 +45,6 @@ export function traduzirErroBanco(
   if (!pg) return null;
   const entrada = pg.constraint ? mapa[pg.constraint] : undefined;
   if (entrada) return { [entrada.campo]: entrada.mensagem };
-  if (pg.code === "23503")
-    return { _: "Está em uso; desative em vez de excluir." };
+  if (pg.code === "23503") return { _: MENSAGEM_EM_USO };
   return null;
 }

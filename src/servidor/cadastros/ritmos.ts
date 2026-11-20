@@ -3,7 +3,8 @@ import { z } from "zod";
 import type { Banco } from "../banco/cliente";
 import { ritmos, turmas } from "../banco/esquema";
 import { gerarSlug } from "../vitrine/texto";
-import { errosDeZod, type Resultado, traduzirErroBanco } from "./resultado";
+import { executarTraduzindo, ordemSchema } from "./comum";
+import { errosDeZod, type Resultado } from "./resultado";
 
 const ERROS_BANCO = {
   ritmos_nome_unico: {
@@ -20,9 +21,7 @@ const esquema = z.object({
   id: z.string().optional(),
   nome: z.string().trim().min(1, "Informe o nome."),
   slug: z.string().optional(),
-  ordem: z.coerce
-    .number({ error: "Informe um número." })
-    .int("Informe um número inteiro."),
+  ordem: ordemSchema,
   ativo: z.boolean(),
 });
 
@@ -59,12 +58,7 @@ export async function salvarRitmo(
   db: Banco,
   dados: DadosRitmo,
 ): Promise<Resultado<{ id: string }>> {
-  const ordemTexto =
-    typeof dados.ordem === "string" ? dados.ordem.trim() : dados.ordem;
-  const analise = esquema.safeParse({
-    ...dados,
-    ordem: ordemTexto === "" ? Number.NaN : ordemTexto,
-  });
+  const analise = esquema.safeParse(dados);
   if (!analise.success) return { ok: false, erros: errosDeZod(analise.error) };
   const { id, nome, ordem, ativo } = analise.data;
   const slug = gerarSlug(analise.data.slug?.trim() || nome);
@@ -74,7 +68,7 @@ export async function salvarRitmo(
       erros: { slug: "Informe um endereço com letras ou números." },
     };
   }
-  try {
+  return executarTraduzindo(async () => {
     if (id) {
       const [linha] = await db
         .update(ritmos)
@@ -89,11 +83,7 @@ export async function salvarRitmo(
       .values({ nome, slug, ordem, ativo })
       .returning({ id: ritmos.id });
     return { ok: true, valor: { id: linha.id } };
-  } catch (erro) {
-    const erros = traduzirErroBanco(erro, ERROS_BANCO);
-    if (erros) return { ok: false, erros };
-    throw erro;
-  }
+  }, ERROS_BANCO);
 }
 
 /** Exclui um ritmo. Com turmas ligadas, o banco recusa e voltamos "Está em uso…". */
@@ -101,12 +91,8 @@ export async function excluirRitmo(
   db: Banco,
   id: string,
 ): Promise<Resultado<null>> {
-  try {
+  return executarTraduzindo(async () => {
     await db.delete(ritmos).where(eq(ritmos.id, id));
     return { ok: true, valor: null };
-  } catch (erro) {
-    const erros = traduzirErroBanco(erro, {});
-    if (erros) return { ok: false, erros };
-    throw erro;
-  }
+  }, {});
 }

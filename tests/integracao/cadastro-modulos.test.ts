@@ -77,3 +77,28 @@ it("exclui módulo sem turma e recusa o que tem turma", async () => {
     erros: { _: "Está em uso; desative em vez de excluir." },
   });
 });
+
+it("valida a ordem: vazia, decimal, com espaços e fora da faixa", async () => {
+  const salvar = (ordem: string) =>
+    salvarModulo(banco.db, {
+      ativo: true,
+      nome: `Ordem ${ordem.trim()}`,
+      ordem,
+    });
+  expect(await salvar("")).toEqual({
+    ok: false,
+    erros: { ordem: "Informe um número." },
+  });
+  expect(await salvar("1.5")).toEqual({
+    ok: false,
+    erros: { ordem: "Informe um número inteiro." },
+  });
+  expect(await salvar("100000")).toEqual({
+    ok: false,
+    erros: { ordem: "Use um número de 0 a 9999." },
+  });
+  expect((await salvar(" 2 ")).ok).toBe(true);
+  expect(
+    (await listarModulos(banco.db)).find((x) => x.nome === "Ordem 2")?.ordem,
+  ).toBe(2);
+});

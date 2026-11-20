@@ -117,3 +117,34 @@ it("exclui ritmo sem turma e recusa o que tem turma", async () => {
     erros: { _: "Está em uso; desative em vez de excluir." },
   });
 });
+
+it("valida a ordem: vazia, decimal, com espaços e fora da faixa", async () => {
+  const salvar = (ordem: string) =>
+    salvarRitmo(banco.db, {
+      ativo: true,
+      nome: `Ordem ${ordem.trim()}`,
+      ordem,
+    });
+  expect(await salvar("")).toEqual({
+    ok: false,
+    erros: { ordem: "Informe um número." },
+  });
+  expect(await salvar("1.5")).toEqual({
+    ok: false,
+    erros: { ordem: "Informe um número inteiro." },
+  });
+  expect(await salvar("100000")).toEqual({
+    ok: false,
+    erros: { ordem: "Use um número de 0 a 9999." },
+  });
+  expect((await salvar(" 2 ")).ok).toBe(true);
+  expect(
+    (await listarRitmos(banco.db)).find((x) => x.nome === "Ordem 2")?.ordem,
+  ).toBe(2);
+});
+
+it("recusa nome só de símbolos, que não gera endereço", async () => {
+  const r = await salvarRitmo(banco.db, { ...base, nome: "!!!" });
+  expect(r.ok).toBe(false);
+  if (!r.ok) expect(Object.keys(r.erros)).toEqual(["slug"]);
+});
