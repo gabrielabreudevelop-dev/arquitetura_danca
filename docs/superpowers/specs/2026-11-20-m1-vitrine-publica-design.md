@@ -1,7 +1,7 @@
 # M1 · Vitrine pública
 
 Data: 2026-11-20
-Situação: aguardando aprovação do dono
+Situação: aprovado em 2026-11-20
 Parte de: `docs/superpowers/specs/2026-11-20-mvp-marcos-design.md` (seção 7, M1). Este documento detalha o M1 e registra o que mudou em relação àquele texto.
 
 ## 1. Intenção
@@ -18,6 +18,7 @@ Decidido com o dono em 2026-11-20:
 - **Eventos levam à compra pelo WhatsApp** (opção B): o evento tem preço em texto e, opcionalmente, um link de ingresso externo. O botão principal vai para o link externo, se houver, ou abre o WhatsApp do estúdio com a mensagem pronta.
 - **Instagram acima do site** como link externo principal.
 - **Capa do evento é opcional e pouco importante**: a arte é renovada a cada evento. Sem capa, a prévia usa uma imagem gerada.
+- **Aviso de esgotado**: a administração marca o evento como esgotado, e o aviso aparece na imagem ou de outra forma visível.
 
 ## 3. Objetivos, não objetivos e antiobjetivos
 
@@ -69,7 +70,7 @@ O dono escolheu a **A**. Se o volume crescer, as capas podem migrar para o Bunny
 O modelo do M0 já tem `ritmos`, `modulos`, `turmas`, `turma_dias`, `eventos` e pessoas com papel `professor`. O M1 acrescenta (migrações novas, nunca editando as antigas):
 
 - **`ritmos.slug`** (único, `^[a-z0-9]+(-[a-z0-9]+)*$`) para endereços legíveis (`/grade/forro`), gerado a partir do nome e editável. **`ritmos.ordem`** (inteiro) para a ordem de exibição, porque a ordem do estúdio não é alfabética (Forró, Sertanejo, Samba no pé, Samba de Gafieira, Bolero, Tango).
-- **`eventos.preco`** (texto curto, opcional; ex.: "R$ 35 antecipado · R$ 40 no dia") e **`eventos.link_ingresso`** (opcional, só `https://`).
+- **`eventos.preco`** (texto curto, opcional; ex.: "R$ 35 antecipado · R$ 40 no dia") e **`eventos.link_ingresso`** (opcional, só `https://`), e **`eventos.esgotado`** (booleano, padrão falso).
 - **Capas:** tabela própria (ex.: `imagens`), com os bytes (`bytea`), tipo (`image/jpeg`), largura, altura, tamanho e data. `eventos` passa a apontar para a imagem (ex.: `capa_id`, opcional). A coluna `capa_url` do M0 deixa de ser usada e pode ser removida. Trocar a capa grava uma imagem nova e apaga a anterior (não há histórico de capas).
 - **Turmas:** o modelo do M0 se mantém: uma turma tem um horário só, igual em todos os seus dias. Confirmado pelo dono: quando o mesmo ritmo e módulo acontece em dias ou horários diferentes, são turmas diferentes, com alunos diferentes (ex.: dois Forró Iniciante). Por isso a grade pode ter várias linhas com o mesmo ritmo e módulo.
 - **Professores:** pessoas com o papel `professor`. Cadastro com nome (obrigatório), e-mail e WhatsApp (opcionais, normalizados pelas funções que já existem em `src/servidor/pessoas/normalizar.ts`). Sem conta de login até o M3. *Decisão de quem constrói:* se o e-mail informado já pertence a uma pessoa (ex.: alguém da administração que também dá aula), o formulário oferece dar o papel de professor a essa pessoa, em vez de criar outra. "Desativar professor" vale para o papel, não para a pessoa (ex.: um campo `ativo` na linha do papel): o professor some da escolha de turmas novas e a pessoa mantém os outros papéis e o acesso.
@@ -86,7 +87,7 @@ Telas (lista + formulário de criar/editar, no padrão de `docs/design.md`):
 - **Módulos:** nome, ordem, ativo.
 - **Professores:** nome, e-mail, WhatsApp, ativo (papel `professor`).
 - **Turmas:** ritmo, módulo, professor (só ativos), dias da semana (um ou mais), horário de início e fim, link do grupo de WhatsApp (validado na aplicação: `https://chat.whatsapp.com/` seguido de um código), ativa.
-- **Eventos:** título, endereço (slug, gerado do título e editável), início (data e hora), fim (opcional), local, descrição (texto simples com quebras de linha), preço, link de ingresso, capa (enviar, trocar, remover), publicado.
+- **Eventos:** título, endereço (slug, gerado do título e editável), início (data e hora), fim (opcional), local, descrição (texto simples com quebras de linha), preço, link de ingresso, capa (enviar, trocar, remover), esgotado, publicado. Na lista de eventos do painel, "Marcar como esgotado" / "Reabrir ingressos" é uma ação direta, sem abrir o formulário.
 
 Regras:
 - Validação no servidor com zod, mensagens específicas ao lado do campo ("Esse endereço já está em uso", "O fim precisa ser depois do início"). Erros do banco (unicidade, checagens) viram mensagens legíveis, nunca texto cru.
@@ -151,6 +152,7 @@ Intermediário    seg e qua · 20h–21h
   - **"Compartilhar no WhatsApp"**: `wa.me/?text=` com título, data e o endereço da página;
   - **"Copiar link"**: copia o endereço e confirma ("Link copiado") perto do botão; se o navegador não permitir, mostra o endereço selecionável.
 - **Quando um evento passa.** *Decisão de quem constrói:* com fim cadastrado, quando o fim passa; sem fim, quando acaba o dia do início (à meia-noite, horário de São Paulo). Assim o "R$ 40 no dia" continua valendo durante o evento. A mesma regra serve ao destaque, à lista e à página.
+- **Esgotado.** Pedido do dono. Proposta: uma faixa "Esgotado" sobre o canto da capa (ou, sem capa, ao lado do título), o botão "Garantir meu ingresso" substituído pelo texto "Ingressos esgotados", e "Compartilhar" e "Copiar link" mantidos. Vale para a página do evento, para o destaque da página inicial e para a lista de eventos; o evento esgotado continua aparecendo na lista e no destaque. Na prévia de link, a descrição começa com "Esgotado ·" e a imagem gerada (quando não há capa) traz o aviso. A prévia já guardada pelo WhatsApp pode não mudar, porque ele guarda a prévia em cache.
 - Evento que já passou continua acessível pelo link, com o aviso "Este evento já aconteceu", sem o botão de ingresso. Não aparece na lista nem no destaque.
 - Evento inexistente ou em rascunho: 404.
 
@@ -168,6 +170,7 @@ A identidade provisória do M0 (`docs/design.md`, tokens em `globals.css`) é su
 - **Marca:** até o estúdio enviar o logo original, a marca é o nome do estúdio em Dancing Script. O logo entra quando os arquivos chegarem.
 - Botões com altura mínima de 48 px, raio pequeno (4 a 6 px), sombra suave só onde ajudar a ler.
 - As telas do M0 (entrar, painel, sem acesso) passam para a identidade nova.
+- A faixa "Esgotado" é a única exceção à regra de "sem selos" e entra em `docs/design.md` como tal.
 
 ## 10. Acertos herdados do M0
 
