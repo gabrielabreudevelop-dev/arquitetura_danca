@@ -9,10 +9,20 @@ import {
 
 describe("eventoJaPassou", () => {
   const inicio = new Date("2026-12-14T00:00:00Z");
-  it("sem fim, vale 3 horas depois do início", () => {
+  it("sem fim, passa à meia-noite de São Paulo do dia do início", () => {
     const e = { inicio, fim: null };
     expect(eventoJaPassou(e, new Date("2026-12-14T02:59:59Z"))).toBe(false);
     expect(eventoJaPassou(e, new Date("2026-12-14T03:00:00Z"))).toBe(true);
+    const manha = { inicio: new Date("2026-12-13T13:00:00Z"), fim: null };
+    expect(eventoJaPassou(manha, new Date("2026-12-14T02:59:59Z"))).toBe(false);
+    expect(eventoJaPassou(manha, new Date("2026-12-14T03:00:00Z"))).toBe(true);
+    const madruga = { inicio: new Date("2026-12-14T03:30:00Z"), fim: null };
+    expect(eventoJaPassou(madruga, new Date("2026-12-15T02:59:59Z"))).toBe(
+      false,
+    );
+    expect(eventoJaPassou(madruga, new Date("2026-12-15T03:00:00Z"))).toBe(
+      true,
+    );
   });
   it("com fim, vale o fim", () => {
     const e = { inicio, fim: new Date("2026-12-14T05:00:00Z") };

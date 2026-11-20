@@ -169,3 +169,15 @@ export function formatarDataCurta(instante: Date): string {
   const p = partesEmSaoPaulo(instante);
   return `${doisDigitos(p.dia)}/${doisDigitos(p.mes)}`;
 }
+
+/** Meia-noite (São Paulo) que encerra o dia-calendário do instante dado. */
+export function fimDoDiaEmSaoPaulo(instante: Date): Date {
+  const [ano = 0, mes = 1, dia = 1] = instanteParaDataHoraLocal(instante)
+    .slice(0, 10)
+    .split("-")
+    .map(Number);
+  const seguinte = new Date(Date.UTC(ano, mes - 1, dia + 1));
+  return dataHoraLocalParaInstante(
+    `${seguinte.toISOString().slice(0, 10)}T00:00`,
+  );
+}

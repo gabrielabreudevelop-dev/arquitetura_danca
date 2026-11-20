@@ -1,15 +1,12 @@
 import { ESTUDIO } from "@/estudio";
-import { formatarDataCurta } from "./texto";
-
-/** Sem horário de fim, o evento é considerado em andamento por 3 horas. */
-const DURACAO_PADRAO_MS = 3 * 60 * 60 * 1000;
+import { fimDoDiaEmSaoPaulo, formatarDataCurta } from "./texto";
 
 export function eventoJaPassou(
   evento: { inicio: Date; fim: Date | null },
   agora: Date,
 ): boolean {
-  const limite =
-    evento.fim?.getTime() ?? evento.inicio.getTime() + DURACAO_PADRAO_MS;
+  // Sem fim, o evento passa à meia-noite (São Paulo) do dia do início.
+  const limite = (evento.fim ?? fimDoDiaEmSaoPaulo(evento.inicio)).getTime();
   return agora.getTime() >= limite;
 }
 
