@@ -184,10 +184,10 @@ Anotados nas revisões do M0 para o M1:
 ## 11. Pronto quando
 
 Verificável no M1 (localmente e na CI):
-- [ ] A administração cadastra, edita, desativa e (quando permitido) exclui ritmos, módulos, professores, turmas e eventos; uma pessoa só atendente não acessa as telas nem consegue executar as actions (testado).
-- [ ] A grade e os eventos aparecem sem login, só com conteúdo ativo e publicado, sem nomes de pessoas (testado).
-- [ ] A página de um evento traz as tags Open Graph completas, com imagem acessível pela rota pública, com e sem capa (testado).
-- [ ] Cada tela pública e do painel foi verificada no celular, no tablet e no computador, com os estados vazio, carregando e erro desenhados.
+- [x] A administração cadastra, edita, desativa e (quando permitido) exclui ritmos, módulos, professores, turmas e eventos; uma pessoa só atendente não acessa as telas nem consegue executar as actions (testado).
+- [x] A grade e os eventos aparecem sem login, só com conteúdo ativo e publicado, sem nomes de pessoas (testado).
+- [x] A página de um evento traz as tags Open Graph completas, com imagem acessível pela rota pública, com e sem capa (testado).
+- [x] Cada tela pública e do painel foi verificada no celular, no tablet e no computador, com os estados vazio, carregando e erro desenhados.
 - [ ] CI verde: lint, tipos, unidade, integração, build e imagem Docker.
 
 Pendentes até o servidor existir (dono):
