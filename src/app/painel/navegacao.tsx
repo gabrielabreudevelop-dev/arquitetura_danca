@@ -18,14 +18,14 @@ export function Navegacao({ administracao }: { administracao: boolean }) {
   const itens = administracao ? [INICIO, ...CADASTROS] : [INICIO];
   return (
     <nav aria-label="Painel" className="min-w-0">
-      <ul className="-mx-2 flex gap-2 overflow-x-auto">
+      <ul className="-mx-2 flex flex-wrap gap-x-2 lg:flex-nowrap">
         {itens.map(({ href, rotulo }) => {
           const atual =
             href === "/painel"
               ? caminho === href
               : caminho === href || caminho.startsWith(`${href}/`);
           return (
-            <li key={href} className="shrink-0">
+            <li key={href}>
               <Link
                 href={href}
                 aria-current={atual ? "page" : undefined}

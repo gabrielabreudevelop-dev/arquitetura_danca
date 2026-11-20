@@ -19,7 +19,7 @@ export default async function LayoutPainel({
           <div className="flex min-h-16 items-center">
             <Marca href="/painel" />
           </div>
-          {/* No celular a navegação desce para a própria linha e rola na horizontal. */}
+          {/* No celular a navegação desce para a própria linha e quebra em duas, sem rolagem. */}
           <div className="order-last w-full min-w-0 lg:order-none lg:w-auto lg:flex-1">
             <Navegacao administracao={papeis.includes("administracao")} />
           </div>
