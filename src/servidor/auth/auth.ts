@@ -6,25 +6,36 @@ import { type Banco, obterBanco } from "../banco/cliente";
 import * as esquema from "../banco/esquema";
 
 type OpcoesAuth = {
-  /** Padrão: BETTER_AUTH_SECRET do ambiente. */
   secret?: string;
-  /** Padrão: BETTER_AUTH_URL do ambiente. */
   baseURL?: string;
-  /** IPs/CIDRs dos proxies que acrescentam ao X-Forwarded-For. Padrão: PROXIES_CONFIAVEIS. */
+  /** IPs/CIDRs dos proxies que acrescentam ao X-Forwarded-For. */
   proxiesConfiaveis?: string[];
 };
 
 /**
  * Monta o Better Auth ligado a um banco. Só a equipe entra: o cadastro
  * público fica desligado e as contas são criadas por `criarMembroEquipe`.
+ *
+ * Sem opções, tudo vem do ambiente (BETTER_AUTH_SECRET, BETTER_AUTH_URL,
+ * PROXIES_CONFIAVEIS). Se qualquer opção for informada, tudo vem só das
+ * opções (o ambiente não é lido) e `secret` e `baseURL` são obrigatórios.
  */
 export function criarAuth(db: Banco, opcoes: OpcoesAuth = {}) {
-  // Com segredo e URL explícitos (testes), o ambiente nunca é lido.
-  const configuracaoExplicita =
-    opcoes.secret !== undefined && opcoes.baseURL !== undefined;
+  const explicito =
+    opcoes.secret !== undefined ||
+    opcoes.baseURL !== undefined ||
+    opcoes.proxiesConfiaveis !== undefined;
+  if (explicito && (!opcoes.secret || !opcoes.baseURL)) {
+    throw new Error("criarAuth: informe secret e baseURL juntos");
+  }
+  const secret = explicito ? opcoes.secret : ambiente.BETTER_AUTH_SECRET;
+  const baseURL = explicito ? opcoes.baseURL : ambiente.BETTER_AUTH_URL;
+  const trustedProxies = explicito
+    ? opcoes.proxiesConfiaveis
+    : ambiente.PROXIES_CONFIAVEIS;
   return betterAuth({
-    secret: opcoes.secret ?? ambiente.BETTER_AUTH_SECRET,
-    baseURL: opcoes.baseURL ?? ambiente.BETTER_AUTH_URL,
+    secret,
+    baseURL,
     database: drizzleAdapter(db, { provider: "pg", schema: esquema }),
     emailAndPassword: {
       enabled: true,
@@ -47,10 +58,7 @@ export function criarAuth(db: Banco, opcoes: OpcoesAuth = {}) {
     advanced: {
       ipAddress: {
         ipAddressHeaders: ["x-forwarded-for"],
-        trustedProxies:
-          "proxiesConfiaveis" in opcoes || configuracaoExplicita
-            ? opcoes.proxiesConfiaveis
-            : ambiente.PROXIES_CONFIAVEIS,
+        trustedProxies,
       },
     },
     plugins: [nextCookies()],
