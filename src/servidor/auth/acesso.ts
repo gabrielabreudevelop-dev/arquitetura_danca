@@ -1,7 +1,7 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { obterBanco } from "../banco/cliente";
+import { type Banco, obterBanco } from "../banco/cliente";
 import { type Papel, pessoaPapeis, pessoas } from "../banco/esquema";
 import { obterAuth } from "./auth";
 
@@ -16,6 +16,20 @@ export function decidirAcesso(
   return sessao.papeis.some((p) => permitidos.includes(p))
     ? "permitir"
     : "sem-acesso";
+}
+
+/** Papéis ativos de uma pessoa (papéis com `ativo = false` não contam). */
+export async function papeisAtivos(
+  db: Banco,
+  pessoaId: string,
+): Promise<Papel[]> {
+  const linhas = await db
+    .select({ papel: pessoaPapeis.papel })
+    .from(pessoaPapeis)
+    .where(
+      and(eq(pessoaPapeis.pessoaId, pessoaId), eq(pessoaPapeis.ativo, true)),
+    );
+  return linhas.map((l) => l.papel);
 }
 
 /**
@@ -36,13 +50,7 @@ export async function exigirPapel(
       .select({ id: pessoas.id, nome: pessoas.nome })
       .from(pessoas)
       .where(eq(pessoas.usuarioId, sessao.user.id));
-    if (pessoa) {
-      const linhas = await db
-        .select({ papel: pessoaPapeis.papel })
-        .from(pessoaPapeis)
-        .where(eq(pessoaPapeis.pessoaId, pessoa.id));
-      papeis = linhas.map((l) => l.papel);
-    }
+    if (pessoa) papeis = await papeisAtivos(db, pessoa.id);
   }
 
   const decisao = decidirAcesso(

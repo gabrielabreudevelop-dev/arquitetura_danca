@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import {
+  boolean,
   check,
   date,
   pgEnum,
@@ -57,6 +58,8 @@ export const pessoaPapeis = pgTable(
       .notNull()
       .references(() => pessoas.id, { onDelete: "cascade" }),
     papel: papel("papel").notNull(),
+    // Papel desativado deixa de valer sem apagar o histórico.
+    ativo: boolean("ativo").notNull().default(true),
   },
   (t) => [primaryKey({ columns: [t.pessoaId, t.papel] })],
 );

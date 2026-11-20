@@ -4,6 +4,7 @@ export * from "./auth";
 export * from "./consentimentos";
 export * from "./estrutura";
 export * from "./eventos";
+export * from "./imagens";
 export * from "./periodos";
 export * from "./pessoas";
 export * from "./videos";
