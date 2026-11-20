@@ -35,3 +35,11 @@ jobs:
       - run: pnpm teste
       - run: pnpm teste:integracao
       - run: pnpm build
+
+  imagem:
+    needs: verificar
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t arquitetura-danca:ci .
+      - run: ./scripts/smoke.sh arquitetura-danca:ci

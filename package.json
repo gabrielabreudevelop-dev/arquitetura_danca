@@ -11,6 +11,7 @@
     "tipos": "tsc --noEmit",
     "teste": "vitest run --project unidade",
     "teste:integracao": "vitest run --project integracao",
+    "build:scripts": "esbuild scripts/migrar.ts scripts/criar-membro-equipe.ts --bundle --platform=node --format=esm --target=node26 --outdir=dist --banner:js=\"import { createRequire as __cr } from 'node:module'; const require = __cr(import.meta.url);\"",
     "db:gerar": "drizzle-kit generate",
     "db:migrar": "tsx scripts/migrar.ts",
     "equipe:criar": "tsx --env-file-if-exists=.env.local scripts/criar-membro-equipe.ts"
@@ -35,6 +36,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "drizzle-kit": "^0.31.11",
+    "esbuild": "0.28.2",
     "tailwindcss": "4.3.3",
     "tsx": "^4.23.15",
     "typescript": "^5",

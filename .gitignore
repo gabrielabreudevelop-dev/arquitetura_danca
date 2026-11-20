@@ -19,3 +19,6 @@ next-env.d.ts
 npm-debug.log*
 .pnpm-debug.log*
 AGENTS.md
+
+# build dos scripts (esbuild)
+/dist
