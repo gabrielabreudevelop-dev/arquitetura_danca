@@ -22,6 +22,27 @@
       "when": 1795172192465,
       "tag": "0002_estrutura_estudio",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1795172312750,
+      "tag": "0003_consentimentos",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1795172313701,
+      "tag": "0004_consentimento_imutavel",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1795172314621,
+      "tag": "0005_tipos_consentimento_iniciais",
+      "breakpoints": true
     }
   ]
 }
