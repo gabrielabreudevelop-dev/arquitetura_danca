@@ -19,6 +19,9 @@ type OpcoesAuth = {
  * público fica desligado e as contas são criadas por `criarMembroEquipe`.
  */
 export function criarAuth(db: Banco, opcoes: OpcoesAuth = {}) {
+  // Com segredo e URL explícitos (testes), o ambiente nunca é lido.
+  const configuracaoExplicita =
+    opcoes.secret !== undefined && opcoes.baseURL !== undefined;
   return betterAuth({
     secret: opcoes.secret ?? ambiente.BETTER_AUTH_SECRET,
     baseURL: opcoes.baseURL ?? ambiente.BETTER_AUTH_URL,
@@ -44,7 +47,10 @@ export function criarAuth(db: Banco, opcoes: OpcoesAuth = {}) {
     advanced: {
       ipAddress: {
         ipAddressHeaders: ["x-forwarded-for"],
-        trustedProxies: opcoes.proxiesConfiaveis ?? ambiente.PROXIES_CONFIAVEIS,
+        trustedProxies:
+          "proxiesConfiaveis" in opcoes || configuracaoExplicita
+            ? opcoes.proxiesConfiaveis
+            : ambiente.PROXIES_CONFIAVEIS,
       },
     },
     plugins: [nextCookies()],
