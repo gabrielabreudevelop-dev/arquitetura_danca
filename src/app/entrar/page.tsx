@@ -3,13 +3,22 @@
 import { createAuthClient } from "better-auth/react";
 import { useRouter } from "next/navigation";
 import { type FormEvent, useState } from "react";
+import { Marca } from "../marca";
 
 const clienteAuth = createAuthClient();
+
+const ERRO_CREDENCIAIS = "E-mail ou senha incorretos";
+const ERRO_LIMITE = "Muitas tentativas. Aguarde um minuto e tente de novo.";
+
+const estiloCampo =
+  "min-h-12 w-full rounded-sm border border-borda bg-transparent px-3 text-base aria-invalid:border-erro";
 
 export default function Entrar() {
   const roteador = useRouter();
   const [erro, setErro] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
+  // Só o erro de credenciais aponta para os campos; o de limite não.
+  const camposInvalidos = erro === ERRO_CREDENCIAIS ? true : undefined;
 
   async function enviar(evento: FormEvent<HTMLFormElement>) {
     evento.preventDefault();
@@ -22,11 +31,7 @@ export default function Entrar() {
     });
     setEnviando(false);
     if (error) {
-      setErro(
-        error.status === 429
-          ? "Muitas tentativas. Aguarde um minuto e tente de novo."
-          : "E-mail ou senha incorretos",
-      );
+      setErro(error.status === 429 ? ERRO_LIMITE : ERRO_CREDENCIAIS);
       return;
     }
     roteador.push("/painel");
@@ -34,42 +39,71 @@ export default function Entrar() {
   }
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-sm flex-col justify-center gap-4 p-6">
-      <h1 className="text-2xl font-semibold">Entrar</h1>
-      <form onSubmit={enviar} className="flex flex-col gap-3">
-        <label className="flex flex-col gap-1">
-          E-mail
-          <input
-            name="email"
-            type="email"
-            autoComplete="username"
-            required
-            className="rounded border p-2"
-          />
-        </label>
-        <label className="flex flex-col gap-1">
-          Senha
-          <input
-            name="senha"
-            type="password"
-            autoComplete="current-password"
-            required
-            className="rounded border p-2"
-          />
-        </label>
-        {erro && (
-          <p role="alert" className="text-red-700">
-            {erro}
+    <div className="mx-auto flex min-h-dvh w-full max-w-md flex-col px-6">
+      <header className="flex min-h-16 items-center">
+        <Marca />
+      </header>
+
+      <main className="flex flex-1 flex-col justify-center gap-8 py-12">
+        <div className="flex flex-col gap-2">
+          <h1 className="text-titulo">Entrar</h1>
+          <p className="text-texto/70">
+            Por enquanto, só a equipe do estúdio entra por aqui.
           </p>
-        )}
-        <button
-          type="submit"
-          disabled={enviando}
-          className="rounded bg-black p-2 text-white disabled:opacity-60"
+        </div>
+
+        <form
+          onSubmit={enviar}
+          aria-busy={enviando}
+          className="flex flex-col gap-6"
         >
-          {enviando ? "Entrando…" : "Entrar"}
-        </button>
-      </form>
-    </main>
+          <label className="flex flex-col gap-2">
+            <span className="font-semibold">E-mail</span>
+            <input
+              name="email"
+              type="email"
+              inputMode="email"
+              autoComplete="username"
+              autoCapitalize="none"
+              spellCheck={false}
+              required
+              aria-invalid={camposInvalidos}
+              aria-describedby={erro ? "erro-entrar" : undefined}
+              className={estiloCampo}
+            />
+          </label>
+          <label className="flex flex-col gap-2">
+            <span className="font-semibold">Senha</span>
+            <input
+              name="senha"
+              type="password"
+              autoComplete="current-password"
+              required
+              aria-invalid={camposInvalidos}
+              aria-describedby={erro ? "erro-entrar" : undefined}
+              className={estiloCampo}
+            />
+          </label>
+
+          {erro && (
+            <p id="erro-entrar" role="alert" className="text-erro">
+              {erro}
+            </p>
+          )}
+
+          <button
+            type="submit"
+            disabled={enviando}
+            className="min-h-12 w-full rounded-sm bg-texto px-6 font-semibold text-fundo hover:bg-texto/85 disabled:cursor-wait disabled:bg-texto/70"
+          >
+            {enviando ? "Entrando…" : "Entrar"}
+          </button>
+        </form>
+
+        <p className="text-pequeno text-texto/70">
+          Esqueceu a senha? Fale com a administração do estúdio.
+        </p>
+      </main>
+    </div>
   );
 }

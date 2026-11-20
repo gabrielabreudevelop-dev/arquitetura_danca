@@ -1,24 +1,84 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/*
+ * Tokens do design system. Identidade provisória: ver docs/design.md.
+ *
+ * Os padrões do Tailwind para cores, famílias e tamanhos de texto são zerados
+ * de propósito: só existem as cores, as duas fontes e os três tamanhos abaixo.
+ * Uma classe fora da escala (ex.: `text-xl`, `bg-white`) não gera CSS.
+ */
+@theme {
+  --color-*: initial;
+  --color-fundo: #f6f1e9;
+  --color-texto: #1b1813;
+  /* Só como fundo, sempre com texto na cor `texto` por cima. */
+  --color-destaque: #f5b700;
+  --color-borda: #8a7f70;
+  --color-erro: #b3261e;
+  --color-sucesso: #1f6b43;
+
+  --text-*: initial;
+  --text-pequeno: 0.875rem;
+  --text-pequeno--line-height: 1.45;
+  --text-base: 1.0625rem;
+  --text-base--line-height: 1.55;
+  --text-titulo: clamp(2.25rem, 1.6rem + 2.8vw, 3.5rem);
+  --text-titulo--line-height: 1.05;
+
+  /*
+   * Base de 4 px. Passos permitidos (ver docs/design.md):
+   * 1, 2, 3, 4, 6, 8, 12, 16, 24 → 4, 8, 12, 16, 24, 32, 48, 64, 96 px.
+   */
+  --spacing: 0.25rem;
 }
 
+/* As variáveis `--fonte-*` vêm do next/font, declaradas em layout.tsx. */
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  --font-*: initial;
+  --font-titulo: var(--fonte-titulo), "Arial Narrow", sans-serif;
+  --font-titulo--font-variation-settings: "wdth" 75;
+  --font-texto: var(--fonte-texto), system-ui, sans-serif;
+  --default-font-family: var(--font-texto);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+/*
+ * Elemento-assinatura: a fita de marcação do chão da sala. No máximo uma por
+ * tela, sobre as poucas palavras que dizem o que importa ali.
+ */
+@utility fita {
+  background-color: var(--color-destaque);
+  color: var(--color-texto);
+  padding-inline: 0.12em;
+  margin-inline: -0.04em;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+
+@layer base {
+  html {
+    color-scheme: light;
+    background-color: var(--color-fundo);
+    color: var(--color-texto);
+    font-size: 100%;
+    -webkit-text-size-adjust: 100%;
   }
-}
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: system-ui, sans-serif;
+  body {
+    font-size: var(--text-base);
+    line-height: var(--text-base--line-height);
+  }
+
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-titulo);
+    font-variation-settings: "wdth" 75;
+    font-weight: 600;
+    text-wrap: balance;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-texto);
+    outline-offset: 3px;
+  }
 }
