@@ -188,7 +188,7 @@ Verificável no M1 (localmente e na CI):
 - [x] A grade e os eventos aparecem sem login, só com conteúdo ativo e publicado, sem nomes de pessoas (testado).
 - [x] A página de um evento traz as tags Open Graph completas, com imagem acessível pela rota pública, com e sem capa (testado).
 - [x] Formulários e listas do painel e as páginas públicas foram verificados no celular, no tablet e no computador (375, 768 e 1280 px). Formulários do painel: estados de erro (validação) e enviando (botão "Salvando…" desabilitado). Listas do painel e páginas públicas: estado vazio. As páginas públicas são renderizadas no servidor e não têm estado de carregamento próprio.
-- [ ] CI verde: lint, tipos, unidade, integração, build e imagem Docker.
+- [x] CI verde: lint, tipos, unidade, integração, build e imagem Docker (PR #1).
 
 Pendentes até o servidor existir (dono):
 - [ ] A grade real do estúdio está cadastrada em produção e aparece sem login.
