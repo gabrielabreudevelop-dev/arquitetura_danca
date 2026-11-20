@@ -62,6 +62,15 @@ export async function exigirPapel(
   return { pessoaId: pessoa.id, nome: pessoa.nome, papeis };
 }
 
+/** Exige a administração. Toda server action do painel começa por esta chamada. */
+export async function exigirAdministracao(): Promise<{
+  pessoaId: string;
+  nome: string;
+  papeis: Papel[];
+}> {
+  return exigirPapel(["administracao"]);
+}
+
 /**
  * Diz se a visita atual tem sessão de uma pessoa com o papel de administração.
  * Nunca redireciona: serve a rotas que respondem 404 a quem não tem acesso.
