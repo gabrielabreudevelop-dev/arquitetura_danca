@@ -4,23 +4,22 @@ import { NOME_ESTUDIO } from "./marca";
 import "./globals.css";
 
 // Fontes servidas pelo próprio app (pacotes @fontsource-variable), sem rede no build.
-const fonteTitulo = localFont({
-  src: "../../node_modules/@fontsource-variable/archivo/files/archivo-latin-wdth-normal.woff2",
-  weight: "100 900",
-  declarations: [{ prop: "font-stretch", value: "62% 125%" }],
-  variable: "--fonte-titulo",
-  display: "swap",
-});
-
 const fonteTexto = localFont({
-  src: "../../node_modules/@fontsource-variable/atkinson-hyperlegible-next/files/atkinson-hyperlegible-next-latin-wght-normal.woff2",
-  weight: "200 800",
+  src: "../../node_modules/@fontsource-variable/raleway/files/raleway-latin-wght-normal.woff2",
+  weight: "100 900",
   variable: "--fonte-texto",
   display: "swap",
 });
 
+const fonteAssinatura = localFont({
+  src: "../../node_modules/@fontsource-variable/dancing-script/files/dancing-script-latin-wght-normal.woff2",
+  weight: "400 700",
+  variable: "--fonte-assinatura",
+  display: "swap",
+});
+
 export const metadata: Metadata = {
-  title: NOME_ESTUDIO,
+  title: { default: NOME_ESTUDIO, template: `%s · ${NOME_ESTUDIO}` },
   description: "Vídeos dos passos, eventos e comunidade do estúdio.",
 };
 
@@ -32,9 +31,17 @@ export default function RootLayout({
   return (
     <html
       lang="pt-BR"
-      className={`${fonteTitulo.variable} ${fonteTexto.variable}`}
+      className={`${fonteTexto.variable} ${fonteAssinatura.variable}`}
     >
-      <body>{children}</body>
+      <body>
+        <a
+          href="#conteudo"
+          className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:rounded-sm focus:bg-texto focus:px-4 focus:py-3 focus:font-semibold focus:text-fundo"
+        >
+          Pular para o conteúdo
+        </a>
+        {children}
+      </body>
     </html>
   );
 }

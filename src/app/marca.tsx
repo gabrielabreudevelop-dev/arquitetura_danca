@@ -1,17 +1,16 @@
 import Link from "next/link";
 
-/**
- * Nome provisório do estúdio. Trocar aqui quando a trilha T2 entregar o nome
- * definitivo (decisão D4); é o único lugar do código onde ele aparece.
- */
-export const NOME_ESTUDIO = "Arquitetura da Dança";
+import { ESTUDIO } from "@/estudio";
 
-/** Marca textual do estúdio, sempre levando para a página indicada. */
+/** Nome do estúdio; o valor vive em `src/estudio.ts`. */
+export const NOME_ESTUDIO = ESTUDIO.nome;
+
+/** Marca do estúdio (o nome em Dancing Script, até o logo chegar), levando para a página indicada. */
 export function Marca({ href = "/" }: { href?: string }) {
   return (
     <Link
       href={href}
-      className="-mx-2 inline-flex min-h-12 items-center px-2 font-semibold font-titulo text-base uppercase tracking-wide"
+      className="-mx-2 inline-flex min-h-12 items-center whitespace-nowrap px-2 font-assinatura font-semibold text-base"
     >
       {NOME_ESTUDIO}
     </Link>

@@ -1,13 +1,13 @@
 "use client";
 
-import { createAuthClient } from "better-auth/react";
 import { useRouter } from "next/navigation";
 import { type FormEvent, useState } from "react";
+import { clienteAuth } from "../cliente-auth";
 import { Marca } from "../marca";
 
-const clienteAuth = createAuthClient();
-
 const ERRO_CREDENCIAIS = "E-mail ou senha incorretos";
+const ERRO_REDE =
+  "Não foi possível conectar. Verifique sua internet e tente de novo.";
 const ERRO_LIMITE = "Muitas tentativas. Aguarde um minuto e tente de novo.";
 
 const estiloCampo =
@@ -25,13 +25,22 @@ export default function Entrar() {
     const dados = new FormData(evento.currentTarget);
     setEnviando(true);
     setErro(null);
-    const { error } = await clienteAuth.signIn.email({
-      email: String(dados.get("email") ?? ""),
-      password: String(dados.get("senha") ?? ""),
-    });
+    // `undefined` = a chamada lançou exceção (rede fora do ar).
+    const erroLogin = await clienteAuth.signIn
+      .email({
+        email: String(dados.get("email") ?? ""),
+        password: String(dados.get("senha") ?? ""),
+      })
+      .then((resposta) => resposta.error)
+      .catch(() => undefined);
     setEnviando(false);
-    if (error) {
-      setErro(error.status === 429 ? ERRO_LIMITE : ERRO_CREDENCIAIS);
+    // Exceção ou erro sem status: a requisição nem chegou ao servidor.
+    if (erroLogin === undefined || (erroLogin && !erroLogin.status)) {
+      setErro(ERRO_REDE);
+      return;
+    }
+    if (erroLogin) {
+      setErro(erroLogin.status === 429 ? ERRO_LIMITE : ERRO_CREDENCIAIS);
       return;
     }
     roteador.push("/painel");
@@ -44,10 +53,13 @@ export default function Entrar() {
         <Marca />
       </header>
 
-      <main className="flex flex-1 flex-col justify-center gap-8 py-12">
+      <main
+        id="conteudo"
+        className="flex flex-1 flex-col justify-center gap-8 py-12"
+      >
         <div className="flex flex-col gap-2">
           <h1 className="text-titulo">Entrar</h1>
-          <p className="text-texto/70">
+          <p className="text-texto-suave">
             Por enquanto, só a equipe do estúdio entra por aqui.
           </p>
         </div>
@@ -94,13 +106,13 @@ export default function Entrar() {
           <button
             type="submit"
             disabled={enviando}
-            className="min-h-12 w-full rounded-sm bg-texto px-6 font-semibold text-fundo hover:bg-texto/85 disabled:cursor-wait disabled:bg-texto/70"
+            className="min-h-12 w-full rounded-sm bg-acao px-6 font-semibold text-fundo hover:bg-acao-escura disabled:cursor-wait disabled:bg-texto-suave"
           >
             {enviando ? "Entrando…" : "Entrar"}
           </button>
         </form>
 
-        <p className="text-pequeno text-texto/70">
+        <p className="text-pequeno text-texto-suave">
           Esqueceu a senha? Fale com a administração do estúdio.
         </p>
       </main>

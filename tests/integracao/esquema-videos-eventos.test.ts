@@ -29,7 +29,10 @@ async function criarPessoa(nome = "Pessoa de teste") {
 async function criarRitmo() {
   const [ritmo] = await banco.db
     .insert(ritmos)
-    .values({ nome: `Ritmo ${randomUUID()}` })
+    .values({
+      nome: `Ritmo ${randomUUID()}`,
+      slug: `ritmo-${randomUUID().slice(0, 8)}`,
+    })
     .returning();
   return ritmo;
 }

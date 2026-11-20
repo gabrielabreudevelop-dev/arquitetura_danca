@@ -9,7 +9,8 @@
     "start": "next start",
     "lint": "biome check",
     "tipos": "tsc --noEmit",
-    "teste": "vitest run --project unidade",
+    "teste": "TZ=UTC vitest run --project unidade",
+    "teste:fuso": "TZ=Asia/Tokyo vitest run --project unidade src/servidor/vitrine",
     "teste:integracao": "vitest run --project integracao",
     "build:scripts": "esbuild scripts/migrar.ts scripts/criar-membro-equipe.ts scripts/verificar-restauracao.ts scripts/checar-saude.ts --bundle --platform=node --format=esm --target=node26 --outdir=dist --banner:js=\"import { createRequire as __cr } from 'node:module'; const require = __cr(import.meta.url);\"",
     "db:gerar": "drizzle-kit generate",
@@ -19,14 +20,16 @@
   },
   "dependencies": {
     "@better-auth/drizzle-adapter": "1.7.27",
-    "@fontsource-variable/archivo": "5.3.0",
-    "@fontsource-variable/atkinson-hyperlegible-next": "5.3.0",
+    "@fontsource-variable/dancing-script": "^5.3.0",
+    "@fontsource-variable/raleway": "^5.3.0",
+    "@fontsource/raleway": "^5.3.0",
     "better-auth": "1.7.27",
     "drizzle-orm": "^0.45.4",
     "next": "16.4.6",
     "pg": "^8.23.1",
     "react": "19.3.0",
     "react-dom": "19.3.0",
+    "sharp": "^0.35.5",
     "zod": "^4.6.7"
   },
   "devDependencies": {

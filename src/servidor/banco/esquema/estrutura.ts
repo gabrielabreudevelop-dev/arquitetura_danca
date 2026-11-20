@@ -21,12 +21,20 @@ export const ritmos = pgTable(
   {
     id: uuid("id").primaryKey().defaultRandom(),
     nome: text("nome").notNull(),
+    // Endereço público do ritmo (/ritmos/<slug>).
+    slug: text("slug").notNull(),
+    // Ordem de exibição na vitrine; pode se repetir.
+    ordem: integer("ordem").notNull().default(0),
     ativo: boolean("ativo").notNull().default(true),
     criadoEm: timestamp("criado_em", { withTimezone: true })
       .notNull()
       .defaultNow(),
   },
-  (t) => [uniqueIndex("ritmos_nome_unico").on(sql`lower(${t.nome})`)],
+  (t) => [
+    uniqueIndex("ritmos_nome_unico").on(sql`lower(${t.nome})`),
+    uniqueIndex("ritmos_slug_unico").on(t.slug),
+    check("ritmos_slug_valido", sql`${t.slug} ~ '^[a-z0-9]+(-[a-z0-9]+)*$'`),
+  ],
 );
 
 /** Módulos também são cadastrados pela administração; `ordem` pode se repetir. */

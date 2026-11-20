@@ -25,7 +25,10 @@ async function criarPessoa(nome = "Pessoa de teste") {
 }
 
 async function criarRitmo(nome = `Ritmo ${randomUUID()}`) {
-  const [ritmo] = await banco.db.insert(ritmos).values({ nome }).returning();
+  const [ritmo] = await banco.db
+    .insert(ritmos)
+    .values({ nome, slug: `ritmo-${randomUUID().slice(0, 8)}` })
+    .returning();
   return ritmo;
 }
 
@@ -59,7 +62,10 @@ it("recusa ritmo repetido sem diferenciar maiúsculas", async () => {
   const nome = `Samba ${randomUUID()}`;
   await criarRitmo(nome);
   await esperarErroPg(
-    banco.db.insert(ritmos).values({ nome: nome.toLowerCase() }),
+    banco.db.insert(ritmos).values({
+      nome: nome.toLowerCase(),
+      slug: `ritmo-${randomUUID().slice(0, 8)}`,
+    }),
     "23505",
   );
 });

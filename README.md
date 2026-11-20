@@ -38,6 +38,7 @@ O `pnpm equipe:criar` pede a senha no terminal (não a passe como argumento; mí
 | `pnpm lint` | Verificação com Biome |
 | `pnpm tipos` | Checagem de tipos (`tsc --noEmit`) |
 | `pnpm teste` | Testes de unidade |
+| `pnpm teste:fuso` | Testes de horário da vitrine com `TZ=Asia/Tokyo` (o servidor pode ter qualquer fuso) |
 | `pnpm teste:integracao` | Testes de integração (precisam de `DATABASE_URL_TESTE_ADMIN`) |
 | `pnpm db:gerar` | Gera uma migração a partir do esquema (`--name <nome>`) |
 | `pnpm db:migrar` | Aplica as migrações no banco de `DATABASE_URL` |
@@ -49,7 +50,7 @@ Em produção, as migrações rodam sozinhas quando o contêiner inicia (`script
 
 ## Estrutura
 
-- `src/app/`: telas e rotas do Next.js (`entrar`, `painel`, `sem-acesso`, `api`).
+- `src/app/`: telas e rotas do Next.js (`entrar`, `painel`, `sem-acesso`, `api`, e a vitrine pública: `(publico)`, `capas`, `og`).
 - `src/servidor/`: código de servidor (`banco`, `auth`, `equipe`, `pessoas`, ambiente e saúde).
 - `drizzle/`: migrações SQL. `scripts/`: migração, criação da equipe, verificação de restauração.
 - `tests/`: apoio e testes de integração. `docs/`: design e operação.
@@ -61,6 +62,40 @@ Em produção, as migrações rodam sozinhas quando o contêiner inicia (`script
 - [Backups e restauração verificada](docs/operacao/backup.md)
 - [Design do MVP e marcos](docs/superpowers/specs/2026-11-20-mvp-marcos-design.md)
 - [Plano do M0](docs/superpowers/plans/2026-11-20-m0-base.md)
+
+## M1: vitrine pública
+
+O M1 abre o site ao público e dá à administração os cadastros que o alimentam. Tudo o que é público mostra só conteúdo ativo/publicado e nunca nomes de alunos ou de professores.
+
+**Rotas públicas (sem login)**
+
+- `/`: página inicial com o próximo evento e os ritmos ativos.
+- `/grade` e `/grade/[ritmo]`: grade de horários por ritmo, com filtros de módulo e dia.
+- `/eventos` e `/eventos/[slug]`: lista e página de cada evento (capa, ingresso, compartilhar no WhatsApp, copiar link).
+- `/capas/[id]`: bytes da capa de um evento; `/og/padrao` e `/og/evento/[slug]`: imagens de prévia do link.
+
+**Rotas do painel (administração; a atendente cai em `/sem-acesso`)**
+
+- `/painel/ritmos`, `/painel/modulos`, `/painel/professores`: cadastros de apoio, cada um com `/novo` e `/[id]`.
+- `/painel/turmas` (`/nova` e `/[id]`): dia(s) da semana, horário, ritmo, módulo e professor.
+- `/painel/eventos` (`/novo` e `/[id]`): data, local, preço, link de ingresso, capa, esgotado e publicado.
+
+**Como a administração cadastra a grade**
+
+1. Em Ritmos, cadastre os ritmos na ordem em que devem aparecer (campo "Ordem").
+2. Em Módulos, cadastre os níveis (Iniciante, Básico...), também em ordem.
+3. Em Professores, cadastre quem dá aula. Os nomes só aparecem no painel.
+4. Em Turmas, crie uma turma para cada combinação de ritmo, módulo, professor, dias e horário. Só turmas ativas aparecem em `/grade`.
+5. Em Eventos, cadastre e marque "Publicado" para o evento aparecer no site. Eventos passados continuam acessíveis pelo link.
+
+Horários são digitados e exibidos em `America/Sao_Paulo`, seja qual for o fuso do servidor. Os dados fixos do estúdio (Instagram, WhatsApp, endereço, funcionamento) ficam em `src/estudio.ts`.
+
+**Pendente em produção (dono do projeto)**
+
+- [ ] Cadastrar a grade real do estúdio em produção e conferir que `/grade` aparece sem login.
+- [ ] Colar o link de um evento no WhatsApp (com e sem capa) e conferir a prévia com imagem.
+
+O `docker build` e o `scripts/smoke.sh` rodam na CI a cada push.
 
 ## Fechamento do M0 em produção
 

@@ -1,19 +1,32 @@
 @import "tailwindcss";
 
 /*
- * Tokens do design system. Identidade provisória: ver docs/design.md.
+ * Tokens do design system. Regras e contrastes: docs/design.md.
  *
  * Os padrões do Tailwind para cores, famílias e tamanhos de texto são zerados
- * de propósito: só existem as cores, as duas fontes e os três tamanhos abaixo.
+ * de propósito: só existem as cores, as fontes e os três tamanhos abaixo.
  * Uma classe fora da escala (ex.: `text-xl`, `bg-white`) não gera CSS.
  */
 @theme {
   --color-*: initial;
-  --color-fundo: #f6f1e9;
-  --color-texto: #1b1813;
-  /* Só como fundo, sempre com texto na cor `texto` por cima. */
-  --color-destaque: #f5b700;
-  --color-borda: #8a7f70;
+  --color-fundo: #ffffff;
+  --color-fundo-suave: #f2f2f2;
+  --color-texto: #1f1f1f;
+  --color-texto-suave: #555555;
+  /* Contorno de campo (3,4:1). Divisórias usam `linha`. */
+  --color-borda: #8c8c8c;
+  --color-linha: #dcdcdc;
+  /* Decorativa. Nunca como fundo de texto branco. */
+  --color-marca: #c25b8f;
+  /* Botão com texto branco (5,5:1) e o hover dele. */
+  --color-acao: #a8457a;
+  --color-acao-escura: #8e3a67;
+  --color-link: #7f2f57;
+  --color-rosa-suave: #f8e9f1;
+  /* Amarelo e laranja: só como fundo ou realce, nunca como texto. */
+  --color-amarelo: #f5e056;
+  --color-laranja: #f58c23;
+  --color-palco: #1a1a1a;
   --color-erro: #b3261e;
   --color-sucesso: #1f6b43;
 
@@ -35,23 +48,31 @@
 /* As variáveis `--fonte-*` vêm do next/font, declaradas em layout.tsx. */
 @theme inline {
   --font-*: initial;
-  --font-titulo: var(--fonte-titulo), "Arial Narrow", sans-serif;
-  --font-titulo--font-variation-settings: "wdth" 75;
   --font-texto: var(--fonte-texto), system-ui, sans-serif;
+  --font-titulo: var(--fonte-texto), system-ui, sans-serif;
+  --font-assinatura: var(--fonte-assinatura), cursive;
   --default-font-family: var(--font-texto);
 }
 
 /*
- * Elemento-assinatura: a fita de marcação do chão da sala. No máximo uma por
- * tela, sobre as poucas palavras que dizem o que importa ali.
+ * Elemento-assinatura: a fita de marcação do chão da sala, no degradê do
+ * estúdio. É o único degradê do produto. No máximo uma por tela, sobre duas a
+ * quatro palavras, sempre com texto na cor `texto`.
  */
 @utility fita {
-  background-color: var(--color-destaque);
+  background-image: linear-gradient(100deg, #f5db53, #f58c23);
   color: var(--color-texto);
   padding-inline: 0.12em;
   margin-inline: -0.04em;
   -webkit-box-decoration-break: clone;
   box-decoration-break: clone;
+}
+
+/* Única exceção à regra de "sem selos": avisa que uma turma ou evento lotou. */
+@utility faixa-esgotado {
+  background-color: var(--color-palco);
+  color: var(--color-fundo);
+  font-weight: 600;
 }
 
 @layer base {
@@ -72,8 +93,7 @@
   h2,
   h3 {
     font-family: var(--font-titulo);
-    font-variation-settings: "wdth" 75;
-    font-weight: 600;
+    font-weight: 700;
     text-wrap: balance;
   }
 

@@ -55,9 +55,25 @@ for _ in $(seq 1 30); do
   sleep 2
 done
 
+# Consulta uma rota dentro do contêiner e imprime "<status> <content-type>".
+consultar() {
+  docker exec "$app" node -e \
+    'fetch("http://localhost:3000"+process.argv[1]).then(r=>process.stdout.write(r.status+" "+(r.headers.get("content-type")||""))).catch(()=>process.exit(1))' \
+    "$1" 2>/dev/null || true
+}
+
+# A prévia padrão usa a Raleway do disco e o gerador de PNG: tem de sair uma imagem.
+previa="$(consultar /og/padrao)"
+# Capa inexistente: carrega o sharp (capa.ts) e tem de dar 404, nunca 500.
+capa="$(consultar /capas/00000000-0000-4000-8000-000000000000)"
+
 echo "$corpo"
+echo "/og/padrao: ${previa:-sem resposta}"
+echo "/capas/<inexistente>: ${capa:-sem resposta}"
 echo "healthcheck: ${saude:-desconhecido}"
-if [ "$corpo" != "$esperado" ] || [ "$saude" != "healthy" ]; then
+if [ "$corpo" != "$esperado" ] || [ "$saude" != "healthy" ] \
+  || [ "${previa%%;*}" != "200 image/png" ] \
+  || [ "${capa%% *}" != "404" ]; then
   docker logs "$app" >&2 || true
   exit 1
 fi

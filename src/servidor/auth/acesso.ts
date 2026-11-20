@@ -1,7 +1,7 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { obterBanco } from "../banco/cliente";
+import { type Banco, obterBanco } from "../banco/cliente";
 import { type Papel, pessoaPapeis, pessoas } from "../banco/esquema";
 import { obterAuth } from "./auth";
 
@@ -16,6 +16,20 @@ export function decidirAcesso(
   return sessao.papeis.some((p) => permitidos.includes(p))
     ? "permitir"
     : "sem-acesso";
+}
+
+/** Papéis ativos de uma pessoa (papéis com `ativo = false` não contam). */
+export async function papeisAtivos(
+  db: Banco,
+  pessoaId: string,
+): Promise<Papel[]> {
+  const linhas = await db
+    .select({ papel: pessoaPapeis.papel })
+    .from(pessoaPapeis)
+    .where(
+      and(eq(pessoaPapeis.pessoaId, pessoaId), eq(pessoaPapeis.ativo, true)),
+    );
+  return linhas.map((l) => l.papel);
 }
 
 /**
@@ -36,13 +50,7 @@ export async function exigirPapel(
       .select({ id: pessoas.id, nome: pessoas.nome })
       .from(pessoas)
       .where(eq(pessoas.usuarioId, sessao.user.id));
-    if (pessoa) {
-      const linhas = await db
-        .select({ papel: pessoaPapeis.papel })
-        .from(pessoaPapeis)
-        .where(eq(pessoaPapeis.pessoaId, pessoa.id));
-      papeis = linhas.map((l) => l.papel);
-    }
+    if (pessoa) papeis = await papeisAtivos(db, pessoa.id);
   }
 
   const decisao = decidirAcesso(
@@ -52,4 +60,29 @@ export async function exigirPapel(
   if (decisao === "entrar") redirect("/entrar");
   if (decisao === "sem-acesso" || !pessoa) redirect("/sem-acesso");
   return { pessoaId: pessoa.id, nome: pessoa.nome, papeis };
+}
+
+/** Exige a administração. Toda server action do painel começa por esta chamada. */
+export async function exigirAdministracao(): Promise<{
+  pessoaId: string;
+  nome: string;
+  papeis: Papel[];
+}> {
+  return exigirPapel(["administracao"]);
+}
+
+/**
+ * Diz se a visita atual tem sessão de uma pessoa com o papel de administração.
+ * Nunca redireciona: serve a rotas que respondem 404 a quem não tem acesso.
+ */
+export async function sessaoEhAdministracao(): Promise<boolean> {
+  const sessao = await obterAuth().api.getSession({ headers: await headers() });
+  if (!sessao) return false;
+  const db = obterBanco();
+  const [pessoa] = await db
+    .select({ id: pessoas.id })
+    .from(pessoas)
+    .where(eq(pessoas.usuarioId, sessao.user.id));
+  if (!pessoa) return false;
+  return (await papeisAtivos(db, pessoa.id)).includes("administracao");
 }
