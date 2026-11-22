@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import {
   boolean,
   check,
+  date,
   index,
   integer,
   pgTable,
@@ -99,18 +100,28 @@ export const turmaDias = pgTable(
 export const matriculas = pgTable(
   "matriculas",
   {
+    id: uuid("id").primaryKey().defaultRandom(),
     alunoId: uuid("aluno_id")
       .notNull()
       .references(() => pessoas.id),
     turmaId: uuid("turma_id")
       .notNull()
       .references(() => turmas.id),
+    entrada: date("entrada").notNull(),
+    saida: date("saida"),
+    // Nulo só nas linhas anteriores ao M2.
+    criadoPor: uuid("criado_por").references(() => pessoas.id),
+    saidaPor: uuid("saida_por").references(() => pessoas.id),
     criadoEm: timestamp("criado_em", { withTimezone: true })
       .notNull()
       .defaultNow(),
   },
   (t) => [
-    primaryKey({ columns: [t.alunoId, t.turmaId] }),
+    // Só uma matrícula aberta por aluno e turma; o histórico fica com saída.
+    uniqueIndex("matriculas_aberta_unica")
+      .on(t.alunoId, t.turmaId)
+      .where(sql`${t.saida} is null`),
+    check("matriculas_saida_apos_entrada", sql`${t.saida} >= ${t.entrada}`),
     index("matriculas_turma_idx").on(t.turmaId),
   ],
 );

@@ -114,14 +114,14 @@ it("um aluno pode estar em duas turmas, mas não duas vezes na mesma", async () 
   const turmaB = await criarTurma();
   await banco.db
     .insert(matriculas)
-    .values({ alunoId: aluno.id, turmaId: turmaA.id });
+    .values({ alunoId: aluno.id, turmaId: turmaA.id, entrada: "2026-01-01" });
   await banco.db
     .insert(matriculas)
-    .values({ alunoId: aluno.id, turmaId: turmaB.id });
+    .values({ alunoId: aluno.id, turmaId: turmaB.id, entrada: "2026-01-01" });
   await esperarErroPg(
     banco.db
       .insert(matriculas)
-      .values({ alunoId: aluno.id, turmaId: turmaA.id }),
+      .values({ alunoId: aluno.id, turmaId: turmaA.id, entrada: "2026-01-01" }),
     "23505",
   );
 });
@@ -132,7 +132,7 @@ it("apagar a turma apaga seus dias, mas não com matrícula", async () => {
   const aluno = await criarPessoa("Aluno");
   await banco.db
     .insert(matriculas)
-    .values({ alunoId: aluno.id, turmaId: turma.id });
+    .values({ alunoId: aluno.id, turmaId: turma.id, entrada: "2026-01-01" });
   await esperarErroPg(
     banco.sql(`delete from turmas where id = '${turma.id}'`),
     "23503",

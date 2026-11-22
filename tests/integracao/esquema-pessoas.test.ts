@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, expect, it } from "vitest";
 import {
-  extensoesPeriodo,
+  ajustesPeriodo,
   periodosContratados,
   pessoaPapeis,
   pessoas,
@@ -80,12 +80,15 @@ it("recusa período com fim antes do início", async () => {
   );
 });
 
-it("recusa extensão com dias <= 0 ou motivo vazio", async () => {
+it("recusa ajuste com dias <= 0 ou motivo vazio", async () => {
   const aluno = await criarPessoa();
   const periodo = await criarPeriodo(aluno.id);
   await esperarErroPg(
-    banco.db.insert(extensoesPeriodo).values({
+    banco.db.insert(ajustesPeriodo).values({
       periodoId: periodo.id,
+      tipo: "extensao",
+      quantidadeDigitada: 1,
+      unidadeDigitada: "dias",
       dias: 0,
       motivo: "Doença",
       criadoPor: aluno.id,
@@ -93,8 +96,11 @@ it("recusa extensão com dias <= 0 ou motivo vazio", async () => {
     "23514",
   );
   await esperarErroPg(
-    banco.db.insert(extensoesPeriodo).values({
+    banco.db.insert(ajustesPeriodo).values({
       periodoId: periodo.id,
+      tipo: "extensao",
+      quantidadeDigitada: 7,
+      unidadeDigitada: "dias",
       dias: 7,
       motivo: "  ",
       criadoPor: aluno.id,
