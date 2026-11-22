@@ -64,7 +64,7 @@ async function primeiroNome(tx: Executor, alunoId: string): Promise<string> {
  */
 export async function transferir(
   db: Banco,
-  a: {
+  entrada: {
     deAlunoId: string;
     paraAlunoId: string;
     quantidade: string | number;
@@ -76,6 +76,12 @@ export async function transferir(
   },
   hoje: DataIso,
 ): Promise<Resultado<{ transferenciaId: string; dias: number }>> {
+  // `ehUuid` aceita maiúsculas: normaliza uma vez para comparar e travar em ordem.
+  const a = {
+    ...entrada,
+    deAlunoId: String(entrada.deAlunoId ?? "").toLowerCase(),
+    paraAlunoId: String(entrada.paraAlunoId ?? "").toLowerCase(),
+  };
   const erros: Record<string, string> = {};
   const texto = String(a.quantidade ?? "").trim();
   const numero = /^\d+$/.test(texto) ? Number(texto) : 0;
@@ -143,6 +149,7 @@ export async function transferir(
           ultimoRecebedor !== null && fimEfetivo(ultimoRecebedor) >= hoje;
         let periodoDestinoId: string;
         if (recebeNoUltimo) {
+          // `inicioRecebedor` não se aplica: a entrada vai no último período.
           periodoDestinoId = ultimoRecebedor.id;
         } else {
           const inicio = inicioInformado ?? hoje;

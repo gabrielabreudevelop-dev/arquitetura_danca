@@ -1,8 +1,11 @@
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { encerrarAluno, MENSAGEM_ENCERRADO } from "@/servidor/alunos/cadastro";
-import { calcularEstado, fimEfetivo } from "@/servidor/alunos/estado";
-import { carregarPeriodosDoAluno } from "@/servidor/alunos/periodos";
+import { calcularEstado } from "@/servidor/alunos/estado";
+import {
+  anularAjuste,
+  carregarPeriodosDoAluno,
+} from "@/servidor/alunos/periodos";
 import { trancar } from "@/servidor/alunos/trancamentos";
 import {
   anularTransferencia,
@@ -278,6 +281,56 @@ describe("transferir", () => {
     });
   });
 
+  it("id do próprio cedente em maiúsculas continua sendo a mesma pessoa", async () => {
+    const ana = await alunoComPeriodo("Ana Souza");
+    expect(await mover(ana.aluno.id, ana.aluno.id.toUpperCase())).toEqual({
+      ok: false,
+      erros: { paraAlunoId: "Escolha outra pessoa." },
+    });
+  });
+
+  it("id do recebedor em maiúsculas funciona normalmente", async () => {
+    const ana = await alunoComPeriodo("Ana Souza");
+    const joao = await alunoComPeriodo("João Souza");
+    const r = await mover(ana.aluno.id, joao.aluno.id.toUpperCase());
+    expect(r.ok).toBe(true);
+    expect(await fimDoUltimo(joao.aluno.id)).toBe("2026-12-05");
+  });
+
+  it("transferências cruzadas simultâneas não travam uma na outra", async () => {
+    const ana = await alunoComPeriodo("Ana Souza");
+    const joao = await alunoComPeriodo("João Souza");
+    const resultados = await Promise.all([
+      mover(ana.aluno.id, joao.aluno.id.toUpperCase(), { quantidade: 1 }),
+      mover(joao.aluno.id, ana.aluno.id, { quantidade: 1 }),
+      mover(ana.aluno.id.toUpperCase(), joao.aluno.id, { quantidade: 1 }),
+      mover(joao.aluno.id.toUpperCase(), ana.aluno.id, { quantidade: 1 }),
+    ]);
+    expect(resultados.every((r) => r.ok)).toBe(true);
+  });
+
+  it("recebedor que só começa em breve recebe a entrada nesse período", async () => {
+    const ana = await alunoComPeriodo("Ana Souza");
+    const fabi = await alunoComPeriodo("Fabi", "2026-12-05", "2026-12-31");
+    const { transferenciaId } = await moverOk(ana.aluno.id, fabi.aluno.id, {
+      inicioRecebedor: "2026-11-23",
+    });
+    expect((await transferencia(transferenciaId)).periodoDestinoId).toBe(
+      fabi.periodo.id,
+    );
+    expect(await linhasDe(transferenciaId)).toHaveLength(2);
+  });
+
+  it("recebedor cujo fim efetivo é hoje recebe a entrada no período dele", async () => {
+    const ana = await alunoComPeriodo("Ana Souza");
+    const gui = await alunoComPeriodo("Gui", "2026-10-23", HOJE);
+    const { transferenciaId } = await moverOk(ana.aluno.id, gui.aluno.id);
+    expect((await transferencia(transferenciaId)).periodoDestinoId).toBe(
+      gui.periodo.id,
+    );
+    expect(await fimDoUltimo(gui.aluno.id)).toBe("2026-11-27");
+  });
+
   it.each([
     ["vencida", "2026-09-01", "2026-10-31"],
     ["que começa depois", "2026-12-05", "2026-12-31"],
@@ -476,12 +529,24 @@ describe("anularTransferencia", () => {
     expect((await anular(transferenciaId)).ok).toBe(true);
   });
 
-  it("a anulação da linha pela rota de ajuste continua bloqueada e o fim volta ao original", async () => {
+  it("a rota de anular ajuste continua recusando as linhas da transferência", async () => {
     const ana = await alunoComPeriodo("Ana Souza");
     const joao = await alunoComPeriodo("João Souza");
     const { transferenciaId } = await moverOk(ana.aluno.id, joao.aluno.id);
-    await anular(transferenciaId);
-    const { periodos } = await carregarPeriodosDoAluno(banco.db, ana.aluno.id);
-    expect(fimEfetivo(periodos[0])).toBe("2026-11-30");
+    const saida = (await linhasDe(transferenciaId)).find(
+      (l) => l.tipo === "transferencia_saida",
+    );
+    expect(
+      await anularAjuste(banco.db, {
+        ajusteId: saida?.id ?? "",
+        motivo: "Engano",
+        feitoPor: adm.id,
+      }),
+    ).toEqual({
+      ok: false,
+      erros: {
+        _: "Este lançamento faz parte de uma transferência. Anule a transferência.",
+      },
+    });
   });
 });
