@@ -417,6 +417,17 @@ export async function anularAjuste(
   );
 }
 
+/** "1 dia", "14 dias" (sem sinal). */
+export function contarDias(dias: number): string {
+  const n = Math.abs(dias);
+  return `${n} ${n === 1 ? "dia" : "dias"}`;
+}
+
+/** "+5 dias", "−14 dias", "+1 dia" (sinal de menos U+2212). */
+export function formatarDiasComSinal(dias: number): string {
+  return `${dias < 0 ? "−" : "+"}${contarDias(dias)}`;
+}
+
 /**
  * Uma linha do livro em poucas palavras, como no histórico: "+5 dias
  * (feriado)", "−14 dias (transferidos para João Souza)".
@@ -427,8 +438,7 @@ export function descreverAjusteCurto(a: {
   tipo: string;
   nomeOutraPessoa?: string;
 }): string {
-  const n = Math.abs(a.dias);
-  const quantidade = `${a.dias < 0 ? "−" : "+"}${n} ${n === 1 ? "dia" : "dias"}`;
+  const quantidade = formatarDiasComSinal(a.dias);
   let detalhe: string | null;
   if (a.tipo === "transferencia_saida" && a.nomeOutraPessoa) {
     detalhe = `transferidos para ${a.nomeOutraPessoa}`;
