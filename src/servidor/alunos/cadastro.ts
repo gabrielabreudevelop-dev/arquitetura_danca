@@ -469,7 +469,7 @@ export async function tornarAluno(
 }
 
 /** Trava a linha da pessoa até o fim da transação. */
-async function travar(tx: Executor, pessoaId: string) {
+export async function travar(tx: Executor, pessoaId: string) {
   await tx
     .select({ id: pessoas.id })
     .from(pessoas)
