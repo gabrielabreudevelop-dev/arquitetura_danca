@@ -14,6 +14,7 @@ import {
   ajustesPeriodo,
   lotesExtensao,
   periodosContratados,
+  planos,
   trancamentos,
   transferencias,
 } from "@/servidor/banco/esquema";
@@ -79,39 +80,76 @@ async function estenderDias(alunoId: string, dias: number, motivo = "feriado") {
   return r.valor;
 }
 
-/** Transferência de 14 dias do período `origemId` para um período de `destino`. */
-async function transferir(origemId: string, destinoNome: string) {
-  const { periodo: destino } = await alunoComPeriodo(
-    "2026-11-01",
-    "2026-11-30",
-  );
-  await banco.sql(
-    `update pessoas set nome = '${destinoNome}' where id = (select aluno_id from periodos_contratados where id = '${destino.id}')`,
-  );
+/** Período de novembro de um aluno novo chamado `nome`. */
+async function periodoDe(nome: string) {
+  const aluno = await criarAluno(banco.db, { nome });
+  return criarPeriodo(banco.db, {
+    alunoId: aluno.id,
+    inicio: "2026-11-01",
+    fim: "2026-11-30",
+    criadoPor: adm.id,
+    planoId: plano.id,
+  });
+}
+
+/** Linha do livro de uma transferência de 14 dias (saída ou entrada). */
+async function linhaDeTransferencia(
+  periodoId: string,
+  tipo: "transferencia_saida" | "transferencia_entrada",
+  transferenciaId: string,
+) {
+  const [linha] = await banco.db
+    .insert(ajustesPeriodo)
+    .values({
+      periodoId,
+      tipo,
+      dias: tipo === "transferencia_saida" ? -14 : 14,
+      quantidadeDigitada: 14,
+      unidadeDigitada: "dias",
+      motivo: "mudou de cidade",
+      transferenciaId,
+      criadoPor: adm.id,
+    })
+    .returning();
+  return linha;
+}
+
+async function novaTransferencia(origemId: string, destinoId: string) {
   const [t] = await banco.db
     .insert(transferencias)
     .values({
       periodoOrigemId: origemId,
-      periodoDestinoId: destino.id,
+      periodoDestinoId: destinoId,
       dias: 14,
       motivo: "mudou de cidade",
       criadoPor: adm.id,
     })
     .returning();
-  const [saida] = await banco.db
-    .insert(ajustesPeriodo)
-    .values({
-      periodoId: origemId,
-      tipo: "transferencia_saida",
-      dias: -14,
-      quantidadeDigitada: 14,
-      unidadeDigitada: "dias",
-      motivo: "mudou de cidade",
-      transferenciaId: t.id,
-      criadoPor: adm.id,
-    })
-    .returning();
+  return t;
+}
+
+/** O período `origemId` cede 14 dias a um aluno novo chamado `destinoNome`. */
+async function transferir(origemId: string, destinoNome: string) {
+  const destino = await periodoDe(destinoNome);
+  const t = await novaTransferencia(origemId, destino.id);
+  const saida = await linhaDeTransferencia(
+    origemId,
+    "transferencia_saida",
+    t.id,
+  );
   return { transferencia: t, saida, destino };
+}
+
+/** O período `destinoId` recebe 14 dias de um aluno novo chamado `origemNome`. */
+async function receber(destinoId: string, origemNome: string) {
+  const origem = await periodoDe(origemNome);
+  const t = await novaTransferencia(origem.id, destinoId);
+  const entrada = await linhaDeTransferencia(
+    destinoId,
+    "transferencia_entrada",
+    t.id,
+  );
+  return { transferencia: t, entrada, origem };
 }
 
 describe("descreverAjusteCurto", () => {
@@ -319,6 +357,27 @@ describe("sugestaoDePeriodo", () => {
     });
   });
 
+  it("plano do último desativado: sem plano sugerido", async () => {
+    const desativado = await criarPlano(banco.db);
+    const aluno = await criarAluno(banco.db);
+    await criarPeriodo(banco.db, {
+      alunoId: aluno.id,
+      inicio: "2026-11-02",
+      fim: "2026-12-01",
+      criadoPor: adm.id,
+      planoId: desativado.id,
+    });
+    await banco.db
+      .update(planos)
+      .set({ ativo: false })
+      .where(eq(planos.id, desativado.id));
+    expect(await sugestaoDePeriodo(banco.db, aluno.id, HOJE)).toEqual({
+      planoId: null,
+      inicio: "2026-12-02",
+      inicioMinimo: "2026-12-02",
+    });
+  });
+
   it("sem período: hoje e sem plano", async () => {
     const aluno = await criarAluno(banco.db);
     expect(await sugestaoDePeriodo(banco.db, aluno.id, HOJE)).toEqual({
@@ -437,6 +496,26 @@ describe("estender", () => {
     expect(r).toEqual({
       ok: false,
       erros: { turmaId: "Escolha a turma das aulas." },
+    });
+  });
+
+  it("em aulas numa turma sem dias na semana: só dias", async () => {
+    const { aluno } = await alunoComPeriodo("2026-11-02", "2026-12-01");
+    const semDias = await criarTurma(banco.db, { dias: [] });
+    await criarMatricula(banco.db, {
+      alunoId: aluno.id,
+      turmaId: semDias.id,
+      entrada: "2026-11-02",
+      criadoPor: adm.id,
+    });
+    const r = await estender(
+      banco.db,
+      { ...base(aluno.id), quantidade: 1, unidade: "aulas" },
+      HOJE,
+    );
+    expect(r).toEqual({
+      ok: false,
+      erros: { unidade: "Essa turma não tem dias na semana; informe em dias." },
     });
   });
 
@@ -683,6 +762,25 @@ describe("anularAjuste", () => {
     ).toEqual({ ok: true, valor: null });
   });
 
+  it("aluno encerrado: anula sem reabrir e o fim volta", async () => {
+    const { aluno } = await alunoComPeriodo("2026-11-02", "2026-12-01");
+    const { ajusteId } = await estenderDias(aluno.id, 5);
+    await encerrarAluno(banco.db, {
+      alunoId: aluno.id,
+      data: HOJE,
+      feitoPor: adm.id,
+    });
+    expect(
+      await anularAjuste(banco.db, {
+        ajusteId,
+        motivo: "engano",
+        feitoPor: adm.id,
+      }),
+    ).toEqual({ ok: true, valor: null });
+    const { periodos } = await carregarPeriodosDoAluno(banco.db, aluno.id);
+    expect(periodos[0].diasAjustes).toBe(0);
+  });
+
   it("id desconhecido", async () => {
     for (const ajusteId of ["xyz", "00000000-0000-0000-0000-000000000000"]) {
       expect(
@@ -779,6 +877,34 @@ describe("anularPeriodo", () => {
       erros: {
         _: "Este período tem 3 lançamentos: +5 dias (feriado), +1 dia (aula extra) e trancamento aberto desde 25/11. Anule-os antes.",
       },
+    });
+  });
+
+  it("com dias recebidos numa transferência: nomeia quem cedeu", async () => {
+    const { periodo } = await alunoComPeriodo("2026-11-02", "2026-12-01");
+    await receber(periodo.id, "Ana Souza");
+    expect(await anular(periodo.id)).toEqual({
+      ok: false,
+      erros: {
+        _: "Este período tem 1 lançamento: +14 dias (recebidos de Ana Souza). Anule-o antes.",
+      },
+    });
+  });
+
+  it("aluno encerrado: anula o período sem lançamentos sem reabrir", async () => {
+    const { aluno, periodo } = await alunoComPeriodo(
+      "2026-11-02",
+      "2026-12-01",
+    );
+    await encerrarAluno(banco.db, {
+      alunoId: aluno.id,
+      data: HOJE,
+      feitoPor: adm.id,
+    });
+    expect(await anular(periodo.id)).toEqual({ ok: true, valor: null });
+    expect(await carregarPeriodosDoAluno(banco.db, aluno.id)).toEqual({
+      periodos: [],
+      trancamentos: [],
     });
   });
 

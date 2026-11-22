@@ -365,6 +365,7 @@ async function buscarAjuste(tx: Executor, ajusteId: string) {
 /**
  * Anula uma linha do livro. Linhas de transferência e de trancamento são
  * anuladas pela operação de origem; linhas de lote podem ser anuladas sozinhas.
+ * Vale também para aluno encerrado: corrigir o histórico não exige reabrir.
  */
 export async function anularAjuste(
   db: Banco,
@@ -397,8 +398,6 @@ export async function anularAjuste(
             "Este lançamento faz parte de um trancamento. Anule o trancamento.",
           );
         }
-        const ativo = await alunoAtivoOuErro(tx, alunoId);
-        if (!ativo.ok) return ativo;
         await tx
           .update(ajustesPeriodo)
           .set({
@@ -509,7 +508,8 @@ async function buscarPeriodo(tx: Executor, periodoId: string) {
 
 /**
  * Anula um período sem lançamentos vivos. Período de transferência é
- * anulado pela transferência.
+ * anulado pela transferência. Vale também para aluno encerrado: corrigir o
+ * histórico não exige reabrir.
  */
 export async function anularPeriodo(
   db: Banco,
@@ -534,8 +534,6 @@ export async function anularPeriodo(
             "Este período veio de uma transferência. Anule a transferência.",
           );
         }
-        const ativo = await alunoAtivoOuErro(tx, periodo.alunoId);
-        if (!ativo.ok) return ativo;
         const vivos = await lancamentosVivos(tx, periodo.id);
         if (vivos.length > 0) {
           const um = vivos.length === 1;
