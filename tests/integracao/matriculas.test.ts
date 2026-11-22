@@ -455,6 +455,89 @@ describe("moverAlunosDaTurma", () => {
   });
 });
 
+describe("casos extras", () => {
+  it("mover mostra a maior entrada quando a data é anterior a alguma", async () => {
+    const origem = await criarTurma(banco.db);
+    const destino = await criarTurma(banco.db);
+    for (const entrada of ["2026-11-07", "2026-11-10"]) {
+      const aluno = await criarAluno(banco.db);
+      await criarMatricula(banco.db, {
+        alunoId: aluno.id,
+        turmaId: origem.id,
+        entrada,
+        criadoPor: adm.id,
+      });
+    }
+    const r = await moverAlunosDaTurma(banco.db, {
+      deTurmaId: origem.id,
+      paraTurmaId: destino.id,
+      data: "2026-11-05",
+      feitoPor: adm.id,
+    });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.erros.data).toContain("(10/11)");
+    const ok = await moverAlunosDaTurma(banco.db, {
+      deTurmaId: origem.id,
+      paraTurmaId: destino.id,
+      data: "2026-11-10",
+      feitoPor: adm.id,
+    });
+    expect(ok).toEqual({ ok: true, valor: { movidos: 2 } });
+  });
+
+  it("mover recusa turma de origem ou destino desconhecida", async () => {
+    const turma = await criarTurma(banco.db);
+    const base = { data: "2026-11-22", feitoPor: adm.id };
+    const nenhuma = "11111111-1111-4111-8111-111111111111";
+    expect(
+      await moverAlunosDaTurma(banco.db, {
+        ...base,
+        deTurmaId: nenhuma,
+        paraTurmaId: turma.id,
+      }),
+    ).toEqual({ ok: false, erros: { deTurmaId: "Turma não encontrada." } });
+    expect(
+      await moverAlunosDaTurma(banco.db, {
+        ...base,
+        deTurmaId: turma.id,
+        paraTurmaId: "xyz",
+      }),
+    ).toEqual({ ok: false, erros: { paraTurmaId: "Turma não encontrada." } });
+  });
+
+  it("trocar recusa aluno encerrado e data inválida", async () => {
+    const aluno = await criarAluno(banco.db);
+    const [a, b] = [await criarTurma(banco.db), await criarTurma(banco.db)];
+    const m = await criarMatricula(banco.db, {
+      alunoId: aluno.id,
+      turmaId: a.id,
+      entrada: "2026-11-01",
+      criadoPor: adm.id,
+    });
+    expect(
+      await trocarDeTurma(banco.db, {
+        matriculaId: m.id,
+        novaTurmaId: b.id,
+        data: "2026-13-01",
+        feitoPor: adm.id,
+      }),
+    ).toEqual({ ok: false, erros: { data: "Informe uma data válida." } });
+    await banco.db
+      .update(pessoaPapeis)
+      .set({ ativo: false })
+      .where(eq(pessoaPapeis.pessoaId, aluno.id));
+    expect(
+      await trocarDeTurma(banco.db, {
+        matriculaId: m.id,
+        novaTurmaId: b.id,
+        data: "2026-11-22",
+        feitoPor: adm.id,
+      }),
+    ).toEqual({ ok: false, erros: { _: MENSAGEM_ENCERRADO } });
+    expect(await abertas(aluno.id)).toHaveLength(1);
+  });
+});
+
 describe("contarMatriculasAbertas", () => {
   it("conta só as abertas, por turma", async () => {
     const turma = await criarTurma(banco.db);

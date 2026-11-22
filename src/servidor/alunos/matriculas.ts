@@ -239,12 +239,15 @@ export async function moverAlunosDaTurma(
           await travar(tx, alunoId);
         }
         const doOrigem = await abertasDaOrigem();
+        // Quem entrou na turma entre a primeira leitura e a trava também é travado.
+        for (const { alunoId } of doOrigem) await travar(tx, alunoId);
 
+        // A data precisa ser igual ou posterior à maior entrada.
         const posterior = doOrigem
           .map((m) => m.entrada)
-          .filter((e) => e > data)
-          .sort()[0];
-        if (posterior) {
+          .sort()
+          .at(-1);
+        if (posterior && posterior > data) {
           return falha(
             "data",
             `A data não pode ser antes da entrada de um aluno na turma (${formatarDia(posterior)}).`,
