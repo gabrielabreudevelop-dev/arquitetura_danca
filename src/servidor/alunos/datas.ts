@@ -14,6 +14,7 @@ const formatadorDia = new Intl.DateTimeFormat("en-CA", {
 
 const MS_POR_DIA = 86_400_000;
 
+/** Separa "AAAA-MM-DD" sem validar: quem recebe texto de fora deve checar com `ehDataIso` antes. */
 function partes(data: DataIso): [number, number, number] {
   const [ano = 0, mes = 1, dia = 1] = data.split("-").map(Number);
   return [ano, mes, dia];
@@ -52,8 +53,9 @@ export function somarMeses(data: DataIso, meses: number): DataIso {
   const diasNoDestino = new Date(
     Date.UTC(ano, mes - 1 + meses + 1, 0),
   ).getUTCDate();
-  if (dia > diasNoDestino)
+  if (dia > diasNoDestino) {
     return paraIso(Date.UTC(ano, mes - 1 + meses + 1, 1));
+  }
   return paraIso(Date.UTC(ano, mes - 1 + meses, dia));
 }
 

@@ -78,5 +78,9 @@ describe("ehDataIso", () => {
     expect(ehDataIso("2026-02-30")).toBe(false);
     expect(ehDataIso("2026-02-28")).toBe(true);
     expect(ehDataIso("28/02/2026")).toBe(false);
+    expect(ehDataIso("2028-02-29")).toBe(true);
+    expect(ehDataIso("2027-02-29")).toBe(false);
+    expect(ehDataIso("2026-13-01")).toBe(false);
+    expect(ehDataIso("2026-1-01")).toBe(false);
   });
 });

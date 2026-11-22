@@ -26,10 +26,14 @@ export function normalizarWhatsapp(numero: string): string {
  */
 export function normalizarInstagram(valor: string): string {
   let texto = valor.trim();
-  const perfil = /^(?:https?:\/\/)?(?:www\.)?instagram\.com\/(.*)$/i.exec(
-    texto,
-  );
-  if (perfil) texto = perfil[1] ?? "";
+  const perfil =
+    /^(?:https?:\/\/)?(?:(?:www|m)\.)?instagram\.com(?:\/(.*))?$/i.exec(texto);
+  if (perfil) {
+    texto = perfil[1] ?? "";
+  } else if (/[/?#:]/.test(texto)) {
+    // Endereço de outro site (com ou sem http://) não vira usuário.
+    throw new Error("Instagram inválido");
+  }
   texto = (texto.split(/[/?#]/)[0] ?? "").replace(/^@/, "").toLowerCase();
   if (!/^[a-z0-9._]{1,30}$/.test(texto)) throw new Error("Instagram inválido");
   return texto;

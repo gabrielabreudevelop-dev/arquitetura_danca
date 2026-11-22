@@ -31,6 +31,7 @@ it.each([
   "ana.souza",
   "https://www.instagram.com/ana.souza/",
   "instagram.com/ana.souza?igsh=x",
+  "m.instagram.com/ana.souza",
 ])("normaliza Instagram %s", (entrada) => {
   expect(normalizarInstagram(entrada)).toBe("ana.souza");
 });
@@ -40,6 +41,10 @@ it.each([
   "@",
   "a".repeat(31),
   "https://evil.com/ana",
+  "evil.com/ana",
+  "instagram.com",
+  "https://instagram.com/",
+  "www.instagram.com/",
 ])("recusa Instagram inválido %s", (entrada) => {
   expect(() => normalizarInstagram(entrada)).toThrow("Instagram inválido");
 });
