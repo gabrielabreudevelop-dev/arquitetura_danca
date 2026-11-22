@@ -28,7 +28,11 @@ import {
   fimEfetivo,
   ultimoPeriodo,
 } from "./estado";
-import { carregarPeriodosDoAluno, diasDoAjuste, travarAluno } from "./periodos";
+import {
+  carregarPeriodosDoAluno,
+  diasDoAjuste,
+  travarAlunosEmOrdem,
+} from "./periodos";
 
 const MENSAGEM_DATA = "Informe uma data válida.";
 const MENSAGEM_MOTIVO = "Informe o motivo.";
@@ -43,11 +47,6 @@ const falha = (campo: string, mensagem: string): Falha => ({
   ok: false,
   erros: { [campo]: mensagem },
 });
-
-/** Trava os alunos em ordem de id, sempre a mesma, para não haver impasse. */
-async function travarEmOrdem(tx: Executor, ids: string[]) {
-  for (const id of [...new Set(ids)].sort()) await travarAluno(tx, id);
-}
 
 async function primeiroNome(tx: Executor, alunoId: string): Promise<string> {
   const [p] = await tx
@@ -110,7 +109,7 @@ export async function transferir(
     () =>
       db.transaction(async (tx) => {
         if (!ehUuid(a.deAlunoId)) return falha("_", "Aluno não encontrado.");
-        await travarEmOrdem(tx, [a.deAlunoId, a.paraAlunoId]);
+        await travarAlunosEmOrdem(tx, [a.deAlunoId, a.paraAlunoId]);
         const cedenteAtivo = await alunoAtivoOuErro(tx, a.deAlunoId);
         if (!cedenteAtivo.ok) return cedenteAtivo;
         const recebedorAtivo = await alunoAtivoOuErro(tx, a.paraAlunoId);
@@ -261,7 +260,7 @@ export async function anularTransferencia(
       db.transaction(async (tx) => {
         const lida = await buscarTransferencia(tx, a.transferenciaId);
         if (!lida) return naoEncontrada;
-        await travarEmOrdem(tx, [lida.cedenteId, lida.recebedorId]);
+        await travarAlunosEmOrdem(tx, [lida.cedenteId, lida.recebedorId]);
         const t = await buscarTransferencia(tx, a.transferenciaId);
         if (!t) return naoEncontrada;
         if (t.anuladoEm) return falha("_", MENSAGEM_JA_ANULADO);

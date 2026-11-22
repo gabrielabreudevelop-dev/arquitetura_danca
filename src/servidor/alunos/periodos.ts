@@ -49,6 +49,11 @@ export async function travarAluno(tx: Executor, alunoId: string) {
   await travar(tx, alunoId);
 }
 
+/** Trava os alunos em ordem de id, sempre a mesma, para não haver impasse. */
+export async function travarAlunosEmOrdem(tx: Executor, ids: string[]) {
+  for (const id of [...new Set(ids)].sort()) await travarAluno(tx, id);
+}
+
 /** Períodos e trancamentos não anulados do aluno, na forma do cálculo de estado. */
 export async function carregarPeriodosDoAluno(
   tx: Executor,
