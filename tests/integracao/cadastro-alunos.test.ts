@@ -448,6 +448,169 @@ describe("atualizarAluno", () => {
   });
 });
 
+describe("regras adicionais de cadastro", () => {
+  it("responsável novo (explícito) com e-mail de outra pessoa: erro e nada gravado", async () => {
+    const dona = await criarProfessor(banco.db, {
+      nome: "Dona Lia",
+      email: "lia@exemplo.dev",
+    });
+    const antes = await banco.db.select().from(pessoas);
+    const r = await cadastrarAluno(
+      banco.db,
+      {
+        nome: "Filho",
+        nascimento: "2015-01-01",
+        responsavel: {
+          novo: true,
+          nome: "Lia",
+          whatsapp: zap(),
+          email: "LIA@exemplo.dev",
+        },
+      },
+      adm.id,
+      HOJE,
+    );
+    expect(r).toEqual({
+      ok: false,
+      erros: { "responsavel.email": `Esse e-mail já pertence a ${dona.nome}.` },
+    });
+    expect(await banco.db.select().from(pessoas)).toHaveLength(antes.length);
+  });
+
+  it("responsável sem pessoaId e sem novo cujo WhatsApp é de duas ou mais pessoas: cria um responsável novo", async () => {
+    await criarAluno(banco.db, { whatsapp: "5511955550001" });
+    await criarAluno(banco.db, { whatsapp: "5511955550001" });
+    const r = await cadastrarAluno(
+      banco.db,
+      {
+        nome: "Filho",
+        nascimento: "2015-01-01",
+        responsavel: { nome: "Nova Mãe", whatsapp: "(11) 95555-0001" },
+      },
+      adm.id,
+      HOJE,
+    );
+    expect(r.ok && r.valor.tipo).toBe("criado");
+    if (!r.ok || r.valor.tipo !== "criado") return;
+    const [lig] = await banco.db
+      .select()
+      .from(responsabilidades)
+      .where(eq(responsabilidades.alunoId, r.valor.alunoId));
+    const [resp] = await banco.db
+      .select()
+      .from(pessoas)
+      .where(eq(pessoas.id, lig.responsavelId));
+    expect(resp.nome).toBe("Nova Mãe");
+  });
+
+  it("aceita nascimento igual a hoje (menor)", async () => {
+    const r = await cadastrarAluno(
+      banco.db,
+      {
+        nome: "Bebê",
+        nascimento: HOJE,
+        responsavel: { novo: true, nome: "Mãe", whatsapp: zap() },
+      },
+      adm.id,
+      HOJE,
+    );
+    expect(r.ok && r.valor.tipo).toBe("criado");
+  });
+
+  it("tornarAluno recusa aluno encerrado e pessoa desconhecida", async () => {
+    const aluno = await criarAluno(banco.db);
+    await encerrarAluno(banco.db, {
+      alunoId: aluno.id,
+      data: HOJE,
+      feitoPor: adm.id,
+    });
+    expect(await tornarAluno(banco.db, aluno.id)).toEqual({
+      ok: false,
+      erros: { _: MENSAGEM_ENCERRADO },
+    });
+    expect(await papeisDe(aluno.id)).toEqual(["aluno:false"]);
+    expect(
+      await tornarAluno(banco.db, "11111111-1111-4111-8111-111111111111"),
+    ).toEqual({
+      ok: false,
+      erros: { _: "Pessoa não encontrada." },
+    });
+  });
+});
+
+describe("atualizarAluno: WhatsApp e responsável de adulto", () => {
+  it("WhatsApp de outra pessoa: erro sem confirmação, salva com ela, e o próprio número não é sinalizado", async () => {
+    const outra = await criarAluno(banco.db, {
+      nome: "Mãe Zé",
+      whatsapp: "5511944440001",
+    });
+    const aluno = await criarAluno(banco.db, { whatsapp: "5511944440002" });
+    const base = { nome: "A", nascimento: "1990-01-01" };
+    const r = await atualizarAluno(
+      banco.db,
+      aluno.id,
+      { ...base, whatsapp: "(11) 94444-0001" },
+      HOJE,
+    );
+    expect(r).toEqual({
+      ok: false,
+      erros: { whatsapp: `Já existe ${outra.nome} com esse WhatsApp.` },
+    });
+    const [intacto] = await banco.db
+      .select()
+      .from(pessoas)
+      .where(eq(pessoas.id, aluno.id));
+    expect(intacto.whatsapp).toBe("5511944440002");
+    const ok = await atualizarAluno(
+      banco.db,
+      aluno.id,
+      { ...base, whatsapp: "(11) 94444-0001", confirmarWhatsappRepetido: true },
+      HOJE,
+    );
+    expect(ok.ok).toBe(true);
+    const [salvo] = await banco.db
+      .select()
+      .from(pessoas)
+      .where(eq(pessoas.id, aluno.id));
+    expect(salvo.whatsapp).toBe("5511944440001");
+    // Agora compartilha o número com a outra pessoa; manter o próprio número não é sinalizado.
+    expect(
+      (
+        await atualizarAluno(
+          banco.db,
+          aluno.id,
+          { ...base, nome: "B", whatsapp: "(11) 94444-0001" },
+          HOJE,
+        )
+      ).ok,
+    ).toBe(true);
+  });
+
+  it("adulto na edição ignora campos de responsável e mantém a ligação", async () => {
+    const mae = await criarProfessor(banco.db);
+    const aluno = await criarAluno(banco.db, { responsavelId: mae.id });
+    const antes = await banco.db.select().from(pessoas);
+    const r = await atualizarAluno(
+      banco.db,
+      aluno.id,
+      {
+        nome: "A",
+        nascimento: "1990-01-01",
+        whatsapp: zap(),
+        responsavel: { novo: true, nome: "Outro", whatsapp: "123" },
+      },
+      HOJE,
+    );
+    expect(r.ok).toBe(true);
+    const lig = await banco.db
+      .select()
+      .from(responsabilidades)
+      .where(eq(responsabilidades.alunoId, aluno.id));
+    expect(lig.map((l) => l.responsavelId)).toEqual([mae.id]);
+    expect(await banco.db.select().from(pessoas)).toHaveLength(antes.length);
+  });
+});
+
 describe("encerrar e reabrir", () => {
   it("encerrar fecha as matrículas, desativa o papel e registra; reabrir reativa sem reabrir matrículas", async () => {
     const aluno = await criarAluno(banco.db);

@@ -378,16 +378,7 @@ export async function cadastrarAluno(
               };
             }
           }
-          if (responsavel?.tipo === "pessoa") {
-            if (!(await existePessoa(tx, responsavel.pessoaId))) {
-              return {
-                ok: false,
-                erros: {
-                  "responsavel.pessoaId": MENSAGEM_RESPONSAVEL_NAO_ENCONTRADO,
-                },
-              };
-            }
-          } else if (responsavel && !responsavel.explicito) {
+          if (responsavel?.tipo === "novo" && !responsavel.explicito) {
             let achada: { id: string; nome: string } | undefined;
             if (responsavel.email)
               achada = await pessoaPorEmail(tx, responsavel.email);
@@ -523,7 +514,10 @@ export async function atualizarAluno(
   hoje: DataIso,
 ): Promise<Resultado<null>> {
   const { erros, valor: aluno } = limparAluno(dados, hoje);
-  const responsavel = limparResponsavel(dados.responsavel, false, erros);
+  // Como no cadastro, responsável de adulto é ignorado: a ligação fica como está.
+  const responsavel = aluno?.menor
+    ? limparResponsavel(dados.responsavel, false, erros)
+    : null;
   if (!aluno || Object.keys(erros).length > 0) return { ok: false, erros };
 
   return executarTraduzindo<null>(
