@@ -22,8 +22,8 @@ import {
 } from "../banco/esquema";
 import { ehUuid, executarTraduzindo } from "../cadastros/comum";
 import type { Resultado } from "../cadastros/resultado";
-import { formatarDias, formatarHorario } from "../vitrine/texto";
 import type { Executor } from "./cadastro";
+import { rotuloDaTurma } from "./carga";
 import { diasPorAulas } from "./conversao";
 import type { DataIso } from "./datas";
 import { calcularEstado, fimEfetivo } from "./estado";
@@ -327,18 +327,6 @@ export async function confirmarLote(
   );
 }
 
-/** Rótulo da turma: "Forró Iniciante · ter e qui 19h". */
-function rotuloDaTurma(t: {
-  ritmo: string;
-  modulo: string;
-  dias: number[];
-  horarioInicio: string;
-  horarioFim: string;
-}): string {
-  const hora = formatarHorario(t.horarioInicio, t.horarioFim).split("–")[0];
-  return `${t.ritmo} ${t.modulo} · ${formatarDias(t.dias)} ${hora}`;
-}
-
 /** Lotes do mais novo ao mais antigo. */
 export async function listarLotes(db: Banco): Promise<
   {
@@ -384,7 +372,6 @@ export async function listarLotes(db: Banco): Promise<
         number[]
       >`coalesce(array_agg(${turmaDias.diaSemana} order by ${turmaDias.diaSemana}) filter (where ${turmaDias.diaSemana} is not null), '{}')`,
       horarioInicio: turmas.horarioInicio,
-      horarioFim: turmas.horarioFim,
     })
     .from(loteTurmas)
     .innerJoin(turmas, eq(turmas.id, loteTurmas.turmaId))

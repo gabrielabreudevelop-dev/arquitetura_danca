@@ -5,6 +5,7 @@ import {
   formatarDataCurta,
   formatarDataEvento,
   formatarDias,
+  formatarHora,
   formatarHorario,
   gerarSlug,
   instanteParaDataHoraLocal,
@@ -36,6 +37,13 @@ describe("formatarDias", () => {
     expect(formatarDias([4, 2])).toBe("ter e qui");
     expect(formatarDias([1, 3, 5])).toBe("seg, qua e sex");
     expect(formatarDias([6])).toBe("sáb");
+  });
+});
+
+describe("formatarHora", () => {
+  it("hora do banco em texto curto", () => {
+    expect(formatarHora("19:00:00")).toBe("19h");
+    expect(formatarHora("08:05")).toBe("8h05");
   });
 });
 
