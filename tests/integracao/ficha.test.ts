@@ -1,6 +1,14 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { obterFicha } from "@/servidor/alunos/ficha";
+import { anularLote, confirmarLote } from "@/servidor/alunos/lotes";
+import { matricular } from "@/servidor/alunos/matriculas";
+import { anularPeriodo } from "@/servidor/alunos/periodos";
+import { anularTrancamento, trancar } from "@/servidor/alunos/trancamentos";
+import {
+  anularTransferencia,
+  transferir,
+} from "@/servidor/alunos/transferencias";
 import {
   ajustesPeriodo,
   bloqueiosContato,
@@ -97,7 +105,7 @@ describe("obterFicha", () => {
       })
       .returning();
 
-    const [extensao, linhaLote, linhaLoteTodo, anulada] = await db
+    const [extensao, linhaLote, linhaLoteTodo] = await db
       .insert(ajustesPeriodo)
       .values([
         {
@@ -209,7 +217,7 @@ describe("obterFicha", () => {
     ]);
 
     // Matrículas: uma aberta e uma encerrada.
-    const [aberta, encerrada] = await db
+    await db
       .insert(matriculas)
       .values([
         {
@@ -317,9 +325,6 @@ describe("obterFicha", () => {
         motivo: "lançado errado",
       },
     });
-    expect(anulada.id).toBeDefined();
-    expect(aberta.id).toBeDefined();
-    expect(encerrada.id).toBeDefined();
   });
 
   it("mostra período recebido, linha recebida, trancamento aberto e linhas antigas sem autor", async () => {
@@ -348,13 +353,13 @@ describe("obterFicha", () => {
       .values({
         periodoOrigemId: periodoAna.id,
         periodoDestinoId: periodoJoao.id,
-        dias: 5,
+        dias: 14,
         motivo: "viagem",
         criadoPor: adm.id,
         criadoEm: em("2026-11-10"),
       })
       .returning();
-    const [entrada] = await db
+    await db
       .insert(ajustesPeriodo)
       .values({
         periodoId: periodoJoao.id,
@@ -398,7 +403,6 @@ describe("obterFicha", () => {
       anular: { tipo: "trancamento", id: aberto.id },
     });
     expect(recebidos.anular).toEqual({ tipo: "transferencia", id: transf.id });
-    expect(entrada.id).toBeDefined();
     expect(recebido.anular).toEqual({ tipo: "transferencia", id: transf.id });
     expect(antigo.por).toBe("—");
   });
@@ -462,5 +466,227 @@ describe("obterFicha", () => {
       por: adm.nome,
     });
     expect(ficha?.podeExcluir).toBe(false);
+  });
+
+  describe("anulações feitas pelos serviços", () => {
+    function ok<T>(r: { ok: true; valor: T } | { ok: false; erros: unknown }) {
+      if (!r.ok) throw new Error(JSON.stringify(r.erros));
+      return r.valor;
+    }
+    const anulado = { por: () => adm.nome, motivo: "erro de lançamento" };
+
+    it("transferência anulada: linha de saída, linha de entrada e período recebido", async () => {
+      const db = banco.db;
+      const plano = await criarPlano(db);
+      const ana = await criarAluno(db, { nome: "Ana Souza" });
+      const joao = await criarAluno(db, { nome: "João Souza" });
+      const bia = await criarAluno(db, { nome: "Bia Souza" });
+      for (const a of [ana, joao]) {
+        await criarPeriodo(db, {
+          alunoId: a.id,
+          inicio: "2026-11-01",
+          fim: "2026-11-30",
+          criadoPor: adm.id,
+          planoId: plano.id,
+        });
+      }
+      const t = async (de: string, para: string) =>
+        ok(
+          await transferir(
+            db,
+            {
+              deAlunoId: de,
+              paraAlunoId: para,
+              quantidade: 2,
+              unidade: "dias",
+              motivo: "Viagem",
+              feitoPor: adm.id,
+            },
+            HOJE,
+          ),
+        );
+      const paraJoao = await t(ana.id, joao.id);
+      const paraBia = await t(ana.id, bia.id);
+      ok(
+        await anularTransferencia(db, {
+          transferenciaId: paraJoao.transferenciaId,
+          motivo: anulado.motivo,
+          feitoPor: adm.id,
+        }),
+      );
+      ok(
+        await anularTransferencia(db, {
+          transferenciaId: paraBia.transferenciaId,
+          motivo: anulado.motivo,
+          feitoPor: adm.id,
+        }),
+      );
+      for (const id of [ana.id, joao.id, bia.id]) {
+        const ficha = await obterFicha(db, id, HOJE);
+        const itens = ficha?.historico.filter(
+          (i) =>
+            i.texto.includes("transferidos") ||
+            i.texto.includes("recebidos") ||
+            i.texto.startsWith("Período recebido"),
+        );
+        expect(itens?.length).toBeGreaterThan(0);
+        for (const i of itens ?? []) {
+          expect(i.anular).toBeNull();
+          expect(i.anulado).toMatchObject({
+            por: adm.nome,
+            motivo: anulado.motivo,
+          });
+          expect(i.anulado?.em).toBeInstanceOf(Date);
+        }
+      }
+    });
+
+    it("trancamento anulado", async () => {
+      const db = banco.db;
+      const ana = await criarAluno(db, { nome: "Ana Souza" });
+      await criarPeriodo(db, {
+        alunoId: ana.id,
+        inicio: "2026-11-01",
+        fim: "2026-12-31",
+        criadoPor: adm.id,
+      });
+      const { trancamentoId } = ok(
+        await trancar(
+          db,
+          { alunoId: ana.id, inicio: "2026-11-22", feitoPor: adm.id },
+          HOJE,
+        ),
+      );
+      ok(
+        await anularTrancamento(db, {
+          trancamentoId,
+          motivo: anulado.motivo,
+          feitoPor: adm.id,
+        }),
+      );
+      const item = (await obterFicha(db, ana.id, HOJE))?.historico.find(
+        (i) => i.tipo === "trancamento",
+      );
+      expect(item).toMatchObject({
+        anular: null,
+        anulado: { por: adm.nome, motivo: anulado.motivo },
+      });
+      expect(item?.destrancar).toBeUndefined();
+    });
+
+    it("lote anulado: a linha do aluno vem anulada", async () => {
+      const db = banco.db;
+      const plano = await criarPlano(db);
+      const turma = await criarTurma(db);
+      const ana = await criarAluno(db, { nome: "Ana Souza" });
+      await criarPeriodo(db, {
+        alunoId: ana.id,
+        inicio: "2026-11-01",
+        fim: "2026-12-31",
+        criadoPor: adm.id,
+        planoId: plano.id,
+      });
+      ok(
+        await matricular(db, {
+          alunoId: ana.id,
+          turmaId: turma.id,
+          entrada: HOJE,
+          feitoPor: adm.id,
+        }),
+      );
+      const { loteId } = ok(
+        await confirmarLote(
+          db,
+          {
+            escopo: { tipo: "turmas", turmaIds: [turma.id] },
+            quantidade: 3,
+            unidade: "dias",
+            motivo: "Recesso",
+            feitoPor: adm.id,
+          },
+          HOJE,
+        ),
+      );
+      ok(
+        await anularLote(db, {
+          loteId,
+          motivo: anulado.motivo,
+          feitoPor: adm.id,
+        }),
+      );
+      const item = (await obterFicha(db, ana.id, HOJE))?.historico.find(
+        (i) => i.tipo === "ajuste",
+      );
+      expect(item?.texto).toContain("+3 dias · Recesso · lote ");
+      expect(item).toMatchObject({
+        anular: null,
+        anulado: { por: adm.nome, motivo: anulado.motivo },
+      });
+    });
+
+    it("período anulado", async () => {
+      const db = banco.db;
+      const ana = await criarAluno(db, { nome: "Ana Souza" });
+      const periodo = await criarPeriodo(db, {
+        alunoId: ana.id,
+        inicio: "2026-11-01",
+        fim: "2026-11-30",
+        criadoPor: adm.id,
+      });
+      ok(
+        await anularPeriodo(db, {
+          periodoId: periodo.id,
+          motivo: anulado.motivo,
+          feitoPor: adm.id,
+        }),
+      );
+      const item = (await obterFicha(db, ana.id, HOJE))?.historico[0];
+      expect(item).toMatchObject({
+        tipo: "periodo",
+        anular: null,
+        anulado: { por: adm.nome, motivo: anulado.motivo },
+      });
+    });
+
+    it("mostra anulado se só o pai foi anulado (defesa)", async () => {
+      const db = banco.db;
+      const ana = await criarAluno(db, { nome: "Ana Souza" });
+      const periodo = await criarPeriodo(db, {
+        alunoId: ana.id,
+        inicio: "2026-11-01",
+        fim: "2026-11-30",
+        criadoPor: adm.id,
+      });
+      const [lote] = await db
+        .insert(lotesExtensao)
+        .values({
+          todoEstudio: true,
+          quantidadeDigitada: 2,
+          unidadeDigitada: "dias",
+          motivo: "Recesso",
+          criadoPor: adm.id,
+          anuladoEm: em("2026-11-20"),
+          anuladoPor: adm.id,
+          motivoAnulacao: "defesa",
+        })
+        .returning();
+      await db.insert(ajustesPeriodo).values({
+        periodoId: periodo.id,
+        tipo: "extensao",
+        dias: 2,
+        quantidadeDigitada: 2,
+        unidadeDigitada: "dias",
+        motivo: "Recesso",
+        loteId: lote.id,
+        criadoPor: adm.id,
+      });
+      const item = (await obterFicha(db, ana.id, HOJE))?.historico.find(
+        (i) => i.tipo === "ajuste",
+      );
+      expect(item).toMatchObject({
+        anular: null,
+        anulado: { motivo: "defesa", em: em("2026-11-20") },
+      });
+    });
   });
 });

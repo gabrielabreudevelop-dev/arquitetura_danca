@@ -3,7 +3,7 @@
  * ajustes, trancamentos, matrículas e encerramentos), do mais recente ao
  * mais antigo, com quem fez cada coisa e o que ainda pode ser anulado.
  */
-import { and, desc, eq, inArray, isNull, or, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, ne, or, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import {
   ajustesPeriodo,
@@ -68,6 +68,16 @@ export type Ficha = {
   naoQuerContato: { em: Date; por: string } | null;
 };
 
+const ORDEM_NO_EMPATE: Record<ItemHistorico["tipo"], number> = {
+  periodo: 0,
+  matricula: 1,
+  saida_turma: 2,
+  ajuste: 3,
+  trancamento: 4,
+  encerramento: 5,
+  reabertura: 6,
+};
+
 const SEM_AUTOR = "—";
 
 type Anulacao = {
@@ -79,6 +89,10 @@ type Anulacao = {
 /** "08/12" → instante do meio-dia em São Paulo (sem horário de verão desde 2019). */
 function meioDiaEmSaoPaulo(data: DataIso): Date {
   return new Date(`${data}T12:00:00-03:00`);
+}
+
+function contarAulas(n: number): string {
+  return `${n} ${n === 1 ? "aula" : "aulas"}`;
 }
 
 function juntarComE(itens: string[]): string {
@@ -134,7 +148,7 @@ export async function obterFicha(
           and(
             inArray(ajustesPeriodo.periodoId, idsPeriodos),
             // A linha do trancamento aparece como o próprio trancamento.
-            sql`${ajustesPeriodo.tipo} <> 'trancamento'`,
+            ne(ajustesPeriodo.tipo, "trancamento"),
           ),
         )
     : [];
@@ -167,6 +181,8 @@ export async function obterFicha(
           periodoOrigemId: transferencias.periodoOrigemId,
           periodoDestinoId: transferencias.periodoDestinoId,
           anuladoEm: transferencias.anuladoEm,
+          anuladoPor: transferencias.anuladoPor,
+          motivoAnulacao: transferencias.motivoAnulacao,
           cedente: doOrigem.nome,
           recebedor: doDestino.nome,
         })
@@ -197,6 +213,9 @@ export async function obterFicha(
           id: lotesExtensao.id,
           todoEstudio: lotesExtensao.todoEstudio,
           motivo: lotesExtensao.motivo,
+          anuladoEm: lotesExtensao.anuladoEm,
+          anuladoPor: lotesExtensao.anuladoPor,
+          motivoAnulacao: lotesExtensao.motivoAnulacao,
         })
         .from(lotesExtensao)
         .where(inArray(lotesExtensao.id, idsLotes))
@@ -216,7 +235,10 @@ export async function obterFicha(
         .innerJoin(modulos, eq(modulos.id, turmas.moduloId))
         .where(inArray(loteTurmas.loteId, idsLotes))
     : [];
-  const rotuloDoLote = new Map<string, { texto: string; motivo: string }>();
+  const rotuloDoLote = new Map<
+    string,
+    { texto: string; motivo: string; anulacao: Anulacao }
+  >();
   for (const l of lotes) {
     const nomes = turmasDosLotes
       .filter((t) => t.loteId === l.id)
@@ -230,6 +252,7 @@ export async function obterFicha(
     rotuloDoLote.set(l.id, {
       texto: l.todoEstudio ? "estúdio todo" : juntarComE([...new Set(nomes)]),
       motivo: l.motivo,
+      anulacao: l,
     });
   }
 
@@ -295,6 +318,8 @@ export async function obterFicha(
   };
   for (const p of periodos) citar(p.criadoPor, p.anuladoPor);
   for (const a of ajustes) citar(a.criadoPor, a.anuladoPor);
+  for (const t of transferidas) citar(t.anuladoPor);
+  for (const l of lotes) citar(l.anuladoPor);
   for (const t of trancadas) citar(t.criadoPor, t.anuladoPor);
   for (const m of todasMatriculas) citar(m.criadoPor, m.saidaPor);
   for (const e of encerramentos) citar(e.criadoPor);
@@ -320,8 +345,13 @@ export async function obterFicha(
         }
       : null;
   /** `anular` só existe enquanto o item não foi anulado. */
-  const anularSe = (a: Anulacao, acao: AcaoAnular): AcaoAnular | null =>
-    a.anuladoEm ? null : acao;
+  const anularSe = (
+    anulacao: ItemHistorico["anulado"],
+    acao: AcaoAnular | null,
+  ): AcaoAnular | null => (anulacao ? null : acao);
+  /** A anulação do próprio item vale; senão, a do pai (transferência ou lote). */
+  const efetiva = (propria: Anulacao, pai?: Anulacao): Anulacao =>
+    propria.anuladoEm ? propria : (pai ?? propria);
 
   const historico: ItemHistorico[] = [];
 
@@ -329,6 +359,9 @@ export async function obterFicha(
     const intervalo = `${formatarDia(p.inicio)} a ${formatarDia(p.fim)}`;
     const recebido = p.origem === "transferencia";
     const transferencia = transferenciaDoPeriodo.get(p.id);
+    const anulado = anulacaoDe(
+      efetiva(p, recebido ? transferencia : undefined),
+    );
     historico.push({
       em: p.criadoEm,
       tipo: "periodo",
@@ -338,18 +371,22 @@ export async function obterFicha(
           ? `Período ${p.plano} · ${intervalo}`
           : `Período · ${intervalo}`,
       por: nomeDe(p.criadoPor),
-      anulado: anulacaoDe(p),
-      anular: recebido
-        ? transferencia
-          ? anularSe(p, { tipo: "transferencia", id: transferencia.id })
-          : null
-        : anularSe(p, { tipo: "periodo", id: p.id }),
+      anulado,
+      anular: anularSe(
+        anulado,
+        recebido
+          ? transferencia
+            ? { tipo: "transferencia", id: transferencia.id }
+            : null
+          : { tipo: "periodo", id: p.id },
+      ),
     });
   }
 
   for (const a of ajustes) {
     let texto: string;
-    let anular: AcaoAnular;
+    let anular: AcaoAnular | null;
+    let pai: Anulacao | undefined;
     if (
       a.tipo === "transferencia_saida" ||
       a.tipo === "transferencia_entrada"
@@ -363,31 +400,36 @@ export async function obterFicha(
       if (outro) {
         texto += ` · ${saida ? "transferidos para" : "recebidos de"} ${outro}`;
       }
-      anular = { tipo: "transferencia", id: a.transferenciaId ?? a.id };
+      pai = t;
+      anular = a.transferenciaId
+        ? { tipo: "transferencia", id: a.transferenciaId }
+        : null;
     } else {
       const lote = a.loteId ? rotuloDoLote.get(a.loteId) : undefined;
       const motivo = a.motivo?.trim() || lote?.motivo || "";
-      const n = a.quantidade;
+      pai = lote?.anulacao;
       texto =
         a.unidade === "aulas"
-          ? `+${n} ${n === 1 ? "aula" : "aulas"} (${contarDias(a.dias)})`
+          ? `+${contarAulas(a.quantidade)} (${contarDias(a.dias)})`
           : formatarDiasComSinal(a.dias);
       if (motivo) texto += ` · ${motivo}`;
       if (lote) texto += ` · lote ${lote.texto}`;
       anular = { tipo: "ajuste", id: a.id };
     }
+    const anulado = anulacaoDe(efetiva(a, pai));
     historico.push({
       em: a.criadoEm,
       tipo: "ajuste",
       texto,
       por: nomeDe(a.criadoPor),
-      anulado: anulacaoDe(a),
-      anular: anularSe(a, anular),
+      anulado,
+      anular: anularSe(anulado, anular),
     });
   }
 
   for (const t of trancadas) {
     const aberto = t.volta === null;
+    const anulado = anulacaoDe(t);
     const item: ItemHistorico = {
       em: t.criadoEm,
       tipo: "trancamento",
@@ -395,20 +437,18 @@ export async function obterFicha(
         ? `Trancado de ${formatarDia(t.inicio)} a ${formatarDia(t.volta)} (${contarDias(diasEntre(t.inicio, t.volta))})`
         : `Trancado desde ${formatarDia(t.inicio)}`,
       por: nomeDe(t.criadoPor),
-      anulado: anulacaoDe(t),
-      anular: anularSe(t, { tipo: "trancamento", id: t.id }),
+      anulado,
+      anular: anularSe(anulado, { tipo: "trancamento", id: t.id }),
     };
-    if (aberto && !t.anuladoEm) item.destrancar = t.id;
+    if (aberto && !anulado) item.destrancar = t.id;
     historico.push(item);
   }
 
-  const rotuloDaMatricula = (m: (typeof todasMatriculas)[number]) =>
-    rotuloDaTurma(m);
   for (const m of todasMatriculas) {
     historico.push({
       em: m.criadoEm,
       tipo: "matricula",
-      texto: `Entrou em ${rotuloDaMatricula(m)}`,
+      texto: `Entrou em ${rotuloDaTurma(m)}`,
       por: nomeDe(m.criadoPor),
       anulado: null,
       anular: null,
@@ -417,7 +457,7 @@ export async function obterFicha(
       historico.push({
         em: meioDiaEmSaoPaulo(m.saida),
         tipo: "saida_turma",
-        texto: `Saiu de ${rotuloDaMatricula(m)}`,
+        texto: `Saiu de ${rotuloDaTurma(m)}`,
         por: nomeDe(m.saidaPor),
         anulado: null,
         anular: null,
@@ -441,15 +481,21 @@ export async function obterFicha(
     });
   }
 
-  // Mais recente primeiro; `sort` é estável, então empates ficam na ordem de montagem.
-  historico.sort((a, b) => b.em.getTime() - a.em.getTime());
+  // Mais recente primeiro. Linhas gravadas numa transação dividem o mesmo
+  // `em`: no empate, vale a ordem em que as coisas acontecem (período, depois
+  // o que se lança nele), e o mais "tardio" aparece antes.
+  historico.sort(
+    (a, b) =>
+      b.em.getTime() - a.em.getTime() ||
+      ORDEM_NO_EMPATE[b.tipo] - ORDEM_NO_EMPATE[a.tipo],
+  );
 
   const matriculasEncerradas = todasMatriculas
     .flatMap((m) =>
       m.saida
         ? [
             {
-              rotulo: rotuloDaMatricula(m),
+              rotulo: rotuloDaTurma(m),
               entrada: m.entrada,
               saida: m.saida,
             },
