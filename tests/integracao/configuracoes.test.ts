@@ -236,9 +236,85 @@ it("sem mensagem ativa devolve null", async () => {
   const lista = await listarMensagens(banco.db);
   const ativa = lista.find((m) => m.finalidade === "retorno" && m.ativa);
   if (!ativa) throw new Error("sem semente");
-  await salvarMensagem(banco.db, { ...ativa, ativa: false });
-  expect(await mensagemAtiva(banco.db, "retorno")).toBeNull();
-  await salvarMensagem(banco.db, { ...ativa, ativa: true });
+  try {
+    await salvarMensagem(banco.db, { ...ativa, ativa: false });
+    expect(await mensagemAtiva(banco.db, "retorno")).toBeNull();
+  } finally {
+    await salvarMensagem(banco.db, { ...ativa, ativa: true });
+  }
+});
+
+it("editar id inexistente com ativa não desativa a mensagem atual", async () => {
+  const antes = await mensagemAtiva(banco.db, "retorno");
+  const r = await salvarMensagem(banco.db, {
+    ...mensagem,
+    id: crypto.randomUUID(),
+    finalidade: "retorno",
+    ativa: true,
+  });
+  expect(r).toEqual({
+    ok: false,
+    erros: { _: "Mensagem não encontrada." },
+  });
+  expect((await mensagemAtiva(banco.db, "retorno"))?.id).toBe(antes?.id);
+});
+
+it("ativar uma mensagem existente pelo id desativa só a ativa da mesma finalidade", async () => {
+  const criada = await salvarMensagem(banco.db, {
+    ...mensagem,
+    nome: "Retorno extra",
+    finalidade: "retorno",
+    ativa: false,
+  });
+  if (!criada.ok) throw new Error("falhou");
+  const retornoAntes = await mensagemAtiva(banco.db, "retorno");
+  const renovacaoAntes = await mensagemAtiva(banco.db, "renovacao");
+  const r = await salvarMensagem(banco.db, {
+    ...mensagem,
+    id: criada.valor.id,
+    nome: "Retorno extra",
+    finalidade: "retorno",
+    ativa: true,
+  });
+  expect(r.ok).toBe(true);
+  expect((await mensagemAtiva(banco.db, "retorno"))?.id).toBe(criada.valor.id);
+  expect((await mensagemAtiva(banco.db, "renovacao"))?.id).toBe(
+    renovacaoAntes?.id,
+  );
+  const [anterior] = await banco.db
+    .select()
+    .from(mensagensProntas)
+    .where(eq(mensagensProntas.id, retornoAntes?.id ?? ""));
+  expect(anterior.ativa).toBe(false);
+});
+
+it("editar o texto mantém os outros campos", async () => {
+  const criada = await salvarMensagem(banco.db, {
+    ...mensagem,
+    nome: "Para editar",
+    finalidade: "retorno",
+    ativa: false,
+  });
+  if (!criada.ok) throw new Error("falhou");
+  const r = await salvarMensagem(banco.db, {
+    ...mensagem,
+    id: criada.valor.id,
+    nome: "Para editar",
+    finalidade: "retorno",
+    ativa: false,
+    texto: "Novo texto, {nome}.",
+  });
+  expect(r.ok).toBe(true);
+  const [linha] = await banco.db
+    .select()
+    .from(mensagensProntas)
+    .where(eq(mensagensProntas.id, criada.valor.id));
+  expect(linha).toMatchObject({
+    nome: "Para editar",
+    finalidade: "retorno",
+    ativa: false,
+    texto: "Novo texto, {nome}.",
+  });
 });
 
 it("exclui mensagem nunca usada e recusa a já usada em contatos", async () => {

@@ -73,6 +73,16 @@ export async function salvarMensagem(
   return executarTraduzindo(
     () =>
       db.transaction(async (tx): Promise<Resultado<{ id: string }>> => {
+        if (id) {
+          const [existe] = await tx
+            .select({ id: mensagensProntas.id })
+            .from(mensagensProntas)
+            .where(eq(mensagensProntas.id, id))
+            .for("update");
+          if (!existe) {
+            return { ok: false, erros: { _: "Mensagem não encontrada." } };
+          }
+        }
         if (ativa) {
           await tx
             .update(mensagensProntas)

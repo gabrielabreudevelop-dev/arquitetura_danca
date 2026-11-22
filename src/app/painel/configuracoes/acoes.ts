@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { exigirAdministracao } from "@/servidor/auth/acesso";
 import { obterBanco } from "@/servidor/banco/cliente";
+import { ehUuid } from "@/servidor/cadastros/comum";
 import {
   excluirMensagem,
   salvarMensagem,
@@ -58,7 +59,10 @@ export async function excluirPlanoAcao(form: FormData): Promise<void> {
   await exigirAdministracao();
   const id = lerTexto(form, "id");
   const resultado = await excluirPlano(obterBanco(), id);
-  if (!resultado.ok) redirect(`/painel/configuracoes/planos/${id}?erro=em-uso`);
+  if (!resultado.ok) {
+    if (!ehUuid(id)) redirect("/painel/configuracoes");
+    redirect(`/painel/configuracoes/planos/${id}?erro=em-uso`);
+  }
   redirect("/painel/configuracoes");
 }
 
@@ -95,6 +99,7 @@ export async function excluirMensagemAcao(form: FormData): Promise<void> {
   const id = lerTexto(form, "id");
   const resultado = await excluirMensagem(obterBanco(), id);
   if (!resultado.ok) {
+    if (!ehUuid(id)) redirect("/painel/configuracoes");
     redirect(`/painel/configuracoes/mensagens/${id}?erro=em-uso`);
   }
   redirect("/painel/configuracoes");
