@@ -927,3 +927,41 @@ describe("contato recente de outra pessoa da equipe (R17)", () => {
     ok(await chamar(bia, adm.id));
   });
 });
+
+it("desfazer não quer contato espera a trava da pessoa (R18)", async () => {
+  const ana = await cadastrar({ nome: "Ana Trava", whatsapp: numero() });
+  ok(await marcarNaoQuerContato(banco.db, { pessoaId: ana, feitoPor: adm.id }));
+  const pool = new Pool({ connectionString: banco.url });
+  const cliente = await pool.connect();
+  try {
+    await cliente.query("begin");
+    await cliente.query("select id from pessoas where id = $1 for update", [
+      ana,
+    ]);
+    let terminou = false;
+    const desfazendo = desfazerNaoQuerContato(banco.db, {
+      pessoaId: ana,
+      feitoPor: adm.id,
+    }).then((r) => {
+      terminou = true;
+      return r;
+    });
+    await new Promise((r) => setTimeout(r, 300));
+    expect(terminou).toBe(false);
+    await cliente.query("commit");
+    ok(await desfazendo);
+    const abertos = await banco.db
+      .select()
+      .from(bloqueiosContato)
+      .where(
+        and(
+          eq(bloqueiosContato.pessoaId, ana),
+          isNull(bloqueiosContato.desfeitoEm),
+        ),
+      );
+    expect(abertos).toHaveLength(0);
+  } finally {
+    cliente.release();
+    await pool.end();
+  }
+});

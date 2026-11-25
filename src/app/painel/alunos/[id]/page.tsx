@@ -103,7 +103,7 @@ export default async function FichaAluno({
         href={`https://instagram.com/${aluno.instagram}`}
         target="_blank"
         rel="noopener noreferrer"
-        className="text-link underline decoration-link underline-offset-4"
+        className={LINK}
       >
         @{aluno.instagram}
       </a>,

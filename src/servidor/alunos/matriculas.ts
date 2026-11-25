@@ -66,6 +66,26 @@ async function matriculaTravada(tx: Executor, matriculaId: string) {
   return buscarMatricula(tx, matriculaId);
 }
 
+/** Última saída do aluno na turma (matrículas já fechadas), ou `null`. */
+async function ultimaSaida(
+  tx: Executor,
+  alunoId: string,
+  turmaId: string,
+): Promise<string | null> {
+  const [linha] = await tx
+    .select({ saida: sql<string | null>`max(${matriculas.saida})` })
+    .from(matriculas)
+    .where(
+      and(eq(matriculas.alunoId, alunoId), eq(matriculas.turmaId, turmaId)),
+    );
+  return linha?.saida ?? null;
+}
+
+/** Quem volta para uma turma entra depois da última saída dela (R18). */
+function mensagemVolta(saida: string): string {
+  return `A entrada precisa ser depois da última saída desta turma (${formatarDia(saida)}).`;
+}
+
 /** Matricula o aluno numa turma ativa, com entrada em `entrada`. */
 export async function matricular(
   db: Banco,
@@ -82,6 +102,10 @@ export async function matricular(
         const turma = await buscarTurma(tx, a.turmaId);
         if (!turma) return falha("turmaId", MENSAGEM_TURMA_NAO_ENCONTRADA);
         if (!turma.ativa) return falha("turmaId", MENSAGEM_TURMA_ATIVA);
+        const saida = await ultimaSaida(tx, a.alunoId, a.turmaId);
+        if (saida !== null && entrada <= saida) {
+          return falha("entrada", mensagemVolta(saida));
+        }
         const [nova] = await tx
           .insert(matriculas)
           .values({
@@ -165,6 +189,10 @@ export async function trocarDeTurma(
         if (jaAberta) return falha("novaTurmaId", MENSAGEM_JA_NA_TURMA);
         if (data < m.entrada) {
           return falha("data", "A data não pode ser antes da entrada.");
+        }
+        const saida = await ultimaSaida(tx, m.alunoId, a.novaTurmaId);
+        if (saida !== null && data <= saida) {
+          return falha("data", mensagemVolta(saida));
         }
         await tx
           .update(matriculas)
@@ -267,6 +295,21 @@ export async function moverAlunosDaTurma(
               )
           ).map((m) => m.alunoId),
         );
+
+        // Quem já saiu do destino depois da data não pode voltar a ele nela.
+        let maiorSaida: string | null = null;
+        for (const m of doOrigem) {
+          if (jaNoDestino.has(m.alunoId)) continue;
+          const saida = await ultimaSaida(tx, m.alunoId, a.paraTurmaId);
+          if (
+            saida !== null &&
+            data <= saida &&
+            (!maiorSaida || saida > maiorSaida)
+          ) {
+            maiorSaida = saida;
+          }
+        }
+        if (maiorSaida) return falha("data", mensagemVolta(maiorSaida));
 
         let movidos = 0;
         for (const m of doOrigem) {

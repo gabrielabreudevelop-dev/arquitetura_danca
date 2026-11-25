@@ -1,4 +1,5 @@
 import { eq } from "drizzle-orm";
+import { Pool } from "pg";
 import { afterAll, beforeAll, expect, it } from "vitest";
 import { contatos, mensagensProntas } from "@/servidor/banco/esquema";
 import { MENSAGEM_EM_USO } from "@/servidor/cadastros/resultado";
@@ -355,4 +356,48 @@ it("guarda a unidade dos ajustes", async () => {
     erros: { unidade: "Escolha dias ou aulas." },
   });
   expect(await obterUnidadeAjustes(banco.db)).toBe("aulas");
+});
+
+it("recusa duração acima de 9999 com mensagem própria (R18)", async () => {
+  const r = await salvarPlano(banco.db, {
+    ...plano,
+    nome: "Longo demais",
+    quantidade: "10000",
+  });
+  expect(r).toEqual({
+    ok: false,
+    erros: { quantidade: "Informe no máximo 9999." },
+  });
+});
+
+it("ativar ao mesmo tempo que outra pessoa: mensagem legível, não erro do banco (R18)", async () => {
+  const pool = new Pool({ connectionString: banco.url });
+  const cliente = await pool.connect();
+  try {
+    // Outra sessão troca a mensagem ativa de "retorno" e segura a transação.
+    await cliente.query("begin");
+    await cliente.query(
+      "update mensagens_prontas set ativa = false where finalidade = 'retorno' and ativa",
+    );
+    await cliente.query(
+      "insert into mensagens_prontas (nome, finalidade, texto, ativa) values ('Concorrente', 'retorno', 'Oi, {nome}!', true)",
+    );
+    const salvando = salvarMensagem(banco.db, {
+      nome: "Minha nova",
+      finalidade: "retorno",
+      texto: "Oi, {nome}!",
+      ativa: true,
+    });
+    await new Promise((r) => setTimeout(r, 300));
+    await cliente.query("commit");
+    expect(await salvando).toEqual({
+      ok: false,
+      erros: {
+        _: "Outra mensagem desta finalidade acabou de ser ativada. Confira a lista e tente de novo.",
+      },
+    });
+  } finally {
+    cliente.release();
+    await pool.end();
+  }
 });

@@ -22,7 +22,7 @@ const esquema = z.object({
       .number({ error: "Informe um número inteiro maior que zero." })
       .int("Informe um número inteiro maior que zero.")
       .min(1, "Informe um número inteiro maior que zero.")
-      .max(9999, "Informe um número inteiro maior que zero."),
+      .max(9999, "Informe no máximo 9999."),
   ),
   unidade: z.enum(["meses", "dias"], { error: "Escolha meses ou dias." }),
   ordem: ordemSchema,

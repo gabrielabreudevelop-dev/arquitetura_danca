@@ -383,15 +383,6 @@ export async function marcarResultado(
   );
 }
 
-async function pessoaExiste(db: Banco, pessoaId: string): Promise<boolean> {
-  if (!ehUuid(pessoaId)) return false;
-  const [linha] = await db
-    .select({ id: pessoas.id })
-    .from(pessoas)
-    .where(eq(pessoas.id, pessoaId));
-  return linha !== undefined;
-}
-
 /** Marca "não quer contato" na pessoa (nada muda se já estiver marcada). */
 export async function marcarNaoQuerContato(
   db: Banco,
@@ -416,19 +407,25 @@ export async function desfazerNaoQuerContato(
   db: Banco,
   a: { pessoaId: string; feitoPor: string },
 ): Promise<Resultado<null>> {
-  return executarTraduzindo(async () => {
-    if (!(await pessoaExiste(db, a.pessoaId))) {
-      return falha(MENSAGEM_PESSOA_NAO_ENCONTRADA);
-    }
-    await db
-      .update(bloqueiosContato)
-      .set({ desfeitoEm: sql`now()`, desfeitoPor: a.feitoPor })
-      .where(
-        and(
-          eq(bloqueiosContato.pessoaId, a.pessoaId.toLowerCase()),
-          isNull(bloqueiosContato.desfeitoEm),
-        ),
-      );
-    return { ok: true as const, valor: null };
-  }, {});
+  if (!ehUuid(a.pessoaId)) return falha(MENSAGEM_PESSOA_NAO_ENCONTRADA);
+  const pessoaId = a.pessoaId.toLowerCase();
+  // Mesma trava de marcar e de registrar contato: nada passa no meio.
+  return executarTraduzindo(
+    () =>
+      db.transaction(async (tx): Promise<Resultado<null>> => {
+        const [existe] = await travarPessoas(tx, [pessoaId]);
+        if (!existe) return falha(MENSAGEM_PESSOA_NAO_ENCONTRADA);
+        await tx
+          .update(bloqueiosContato)
+          .set({ desfeitoEm: sql`now()`, desfeitoPor: a.feitoPor })
+          .where(
+            and(
+              eq(bloqueiosContato.pessoaId, pessoaId),
+              isNull(bloqueiosContato.desfeitoEm),
+            ),
+          );
+        return { ok: true, valor: null };
+      }),
+    {},
+  );
 }

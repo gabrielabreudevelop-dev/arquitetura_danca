@@ -15,6 +15,12 @@ const ERROS_BANCO = {
     campo: "nome",
     mensagem: "Já existe uma mensagem com esse nome.",
   },
+  // Duas ativações ao mesmo tempo: a segunda esbarra no índice único.
+  mensagens_prontas_ativa_unica: {
+    campo: "_",
+    mensagem:
+      "Outra mensagem desta finalidade acabou de ser ativada. Confira a lista e tente de novo.",
+  },
 };
 
 const esquema = z.object({

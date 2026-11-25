@@ -561,3 +561,91 @@ describe("contarMatriculasAbertas", () => {
     expect(mapa.has(vazia.id)).toBe(false);
   });
 });
+
+describe("voltar à mesma turma (R18)", () => {
+  const mensagem = (dia: string) =>
+    `A entrada precisa ser depois da última saída desta turma (${dia}).`;
+
+  async function saiuDe(turmaId: string, saida = "2026-10-31") {
+    const aluno = await criarAluno(banco.db);
+    const m = await criarMatricula(banco.db, {
+      alunoId: aluno.id,
+      turmaId,
+      entrada: "2026-10-01",
+      criadoPor: adm.id,
+    });
+    const r = await tirarDaTurma(banco.db, {
+      matriculaId: m.id,
+      saida,
+      feitoPor: adm.id,
+    });
+    if (!r.ok) throw new Error(JSON.stringify(r.erros));
+    return aluno;
+  }
+
+  it("matricular com entrada antes ou igual à última saída: recusa", async () => {
+    const turma = await criarTurma(banco.db);
+    const aluno = await saiuDe(turma.id);
+    for (const entrada of ["2026-10-15", "2026-10-31"]) {
+      expect(
+        await matricular(banco.db, {
+          alunoId: aluno.id,
+          turmaId: turma.id,
+          entrada,
+          feitoPor: adm.id,
+        }),
+      ).toEqual({ ok: false, erros: { entrada: mensagem("31/10") } });
+    }
+    expect(await linhas(aluno.id)).toHaveLength(1);
+    expect(
+      (
+        await matricular(banco.db, {
+          alunoId: aluno.id,
+          turmaId: turma.id,
+          entrada: "2026-11-01",
+          feitoPor: adm.id,
+        })
+      ).ok,
+    ).toBe(true);
+  });
+
+  it("trocar para uma turma de onde saiu depois da data: recusa", async () => {
+    const [a, b] = [await criarTurma(banco.db), await criarTurma(banco.db)];
+    const aluno = await saiuDe(b.id, "2026-11-10");
+    const m = await criarMatricula(banco.db, {
+      alunoId: aluno.id,
+      turmaId: a.id,
+      entrada: "2026-11-01",
+      criadoPor: adm.id,
+    });
+    expect(
+      await trocarDeTurma(banco.db, {
+        matriculaId: m.id,
+        novaTurmaId: b.id,
+        data: "2026-11-05",
+        feitoPor: adm.id,
+      }),
+    ).toEqual({ ok: false, erros: { data: mensagem("10/11") } });
+    expect(await abertas(aluno.id)).toMatchObject([{ turmaId: a.id }]);
+  });
+
+  it("mover alunos para uma turma de onde um deles saiu depois da data: recusa tudo", async () => {
+    const [de, para] = [await criarTurma(banco.db), await criarTurma(banco.db)];
+    const aluno = await saiuDe(para.id, "2026-11-10");
+    await criarMatricula(banco.db, {
+      alunoId: aluno.id,
+      turmaId: de.id,
+      entrada: "2026-11-01",
+      criadoPor: adm.id,
+    });
+    expect(
+      await moverAlunosDaTurma(banco.db, {
+        deTurmaId: de.id,
+        paraTurmaId: para.id,
+        data: "2026-11-05",
+        feitoPor: adm.id,
+      }),
+    ).toEqual({ ok: false, erros: { data: mensagem("10/11") } });
+    expect(await abertas(aluno.id)).toMatchObject([{ turmaId: de.id }]);
+  });
+});
