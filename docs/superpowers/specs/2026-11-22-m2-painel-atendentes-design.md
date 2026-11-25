@@ -308,14 +308,14 @@ Configurações
 ## 11. Pronto quando
 
 Verificável no M2 (localmente e na CI):
-- [ ] A administração cadastra, edita, encerra, reabre e (quando permitido) exclui alunos, com responsável para menores, e matricula, troca e tira de turmas (testado).
-- [ ] Períodos: registrar, renovar, estender (dias e aulas, individual e em lote), trancar (com volta e aberto), destrancar, transferir (para vigente e para quem não tem período) e anular cada um; a data de fim exibida sempre bate com o histórico (testes de unidade das regras da seção 7, incluindo fim de mês, arredondamento e sobreposição, e de integração com o banco).
-- [ ] Estado do período correto para cada caso da seção 7 com "hoje" em São Paulo (testes também com o processo em outro fuso, como no M1).
-- [ ] Dash: cada número bate com a lista que ele abre (testado).
-- [ ] Contatos: listas certas, registro ao tocar no WhatsApp, resultado, "não quer contato" tirando o aluno das listas, contatados recentes no fim (testado); link `wa.me` com o número e o texto certos, incluindo menor → responsável.
-- [ ] Configurações: planos, mensagens prontas (com validação dos campos) e unidade dos ajustes.
-- [ ] Toda server action nova passa pelo teste estático de `exigirAdministracao()`; uma pessoa só atendente não acessa nenhuma tela do M2 (testado).
-- [ ] Telas verificadas em 375, 768 e 1280 px, com estados vazio, erro e enviando.
+- [x] A administração cadastra, edita, encerra, reabre e (quando permitido) exclui alunos, com responsável para menores, e matricula, troca e tira de turmas (testado).
+- [x] Períodos: registrar, renovar, estender (dias e aulas, individual e em lote), trancar (com volta e aberto), destrancar, transferir (para vigente e para quem não tem período) e anular cada um; a data de fim exibida sempre bate com o histórico (testes de unidade das regras da seção 7, incluindo fim de mês, arredondamento e sobreposição, e de integração com o banco).
+- [x] Estado do período correto para cada caso da seção 7 com "hoje" em São Paulo (testes também com o processo em outro fuso, como no M1).
+- [x] Dash: cada número bate com a lista que ele abre (testado).
+- [x] Contatos: listas certas, registro ao tocar no WhatsApp, resultado, "não quer contato" tirando o aluno das listas, contatados recentes no fim (testado); link `wa.me` com o número e o texto certos, incluindo menor → responsável.
+- [x] Configurações: planos, mensagens prontas (com validação dos campos) e unidade dos ajustes.
+- [x] Toda server action nova passa pelo teste estático de `exigirAdministracao()`; uma pessoa só atendente não acessa nenhuma tela do M2 (testado).
+- [x] Telas verificadas em 375, 768 e 1280 px, com estados vazio, erro e enviando (percurso de 2026-11-25 com banco de exemplo: nada transborda em 375 px, foco visível, áreas de toque de 48 px, "Salvando…").
 - [ ] CI verde: lint, tipos, unidade, integração, build e imagem Docker.
 
 Pendentes até o servidor existir (dono):

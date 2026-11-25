@@ -1,6 +1,6 @@
 # Arquitetura da Dança
 
-Plataforma web responsiva, pensada primeiro para o celular, do estúdio de dança: alunos matriculados reveem em vídeo os passos ensinados pelos professores (por ritmo e módulo), acompanham eventos e participam da comunidade. A grade de horários e a divulgação de eventos ficam abertas ao público. A equipe gerencia alunos, turmas, períodos contratados e consentimentos de contato num painel, que substitui a planilha atual. O M0 entrega a base: banco, autenticação da equipe, painel inicial, backups e operação em produção.
+Plataforma web responsiva, pensada primeiro para o celular, do estúdio de dança: alunos matriculados reveem em vídeo os passos ensinados pelos professores (por ritmo e módulo), acompanham eventos e participam da comunidade. A grade de horários e a divulgação de eventos ficam abertas ao público. A equipe gerencia alunos, turmas, períodos contratados e consentimentos de contato num painel, que substitui a planilha atual. O M0 entrega a base (banco, autenticação da equipe, painel inicial, backups e operação em produção), o M1 a vitrine pública e o M2 o painel de alunos e períodos.
 
 ## Requisitos
 
@@ -51,7 +51,7 @@ Em produção, as migrações rodam sozinhas quando o contêiner inicia (`script
 ## Estrutura
 
 - `src/app/`: telas e rotas do Next.js (`entrar`, `painel`, `sem-acesso`, `api`, e a vitrine pública: `(publico)`, `capas`, `og`).
-- `src/servidor/`: código de servidor (`banco`, `auth`, `equipe`, `pessoas`, ambiente e saúde).
+- `src/servidor/`: código de servidor (`banco`, `auth`, `equipe`, `pessoas`, `alunos`, `contatos`, `configuracoes`, `cadastros`, `vitrine`, ambiente e saúde).
 - `drizzle/`: migrações SQL. `scripts/`: migração, criação da equipe, verificação de restauração.
 - `tests/`: apoio e testes de integração. `docs/`: design e operação.
 
@@ -96,6 +96,39 @@ Horários são digitados e exibidos em `America/Sao_Paulo`, seja qual for o fuso
 - [ ] Colar o link de um evento no WhatsApp (com e sem capa) e conferir a prévia com imagem.
 
 O `docker build` e o `scripts/smoke.sh` rodam na CI a cada push.
+
+## M2: alunos e períodos
+
+O M2 dá à administração o painel que substitui a planilha: alunos, turmas, períodos contratados, extensões, trancamentos, transferências de dias e a lista de quem contatar. Só a administração usa o M2; a atendente continua vendo apenas o início do painel e cai em `/sem-acesso` nas demais telas. Nada com história é apagado: períodos, extensões, trancamentos e transferências são anulados (com motivo, quem e quando), matrículas ganham data de saída e alunos são encerrados. Nenhum dado de aluno aparece em página pública.
+
+**Rotas do painel (só administração)**
+
+- `/painel`: início com os números (vigentes, vencem em breve, vencidos sem contato, trancados, sem período) e "Vigentes por" turma, ritmo, módulo e professor. Cada número abre a lista que ele conta.
+- `/painel/alunos`: lista com busca (sem acento) e filtros de turma, ritmo, módulo, professor, período e situação; `/novo` (cadastro), `/estender-turma` (extensão em lote, com prévia) e `/estender-turma/lotes` (lotes feitos, com anulação).
+- `/painel/alunos/[id]`: ficha com turmas, período, histórico único e contatos. Ações em páginas próprias: `/editar`, `/periodo` (registrar, renovar ou `?corrigir=<id>`), `/estender`, `/trancar`, `/destrancar/[trancamentoId]`, `/transferir`, `/turmas`, `/encerrar` e `/anular?tipo=...&alvo=<id>`.
+- `/painel/contatos`: duas abas, "Vencem em breve" e "Vencidos", com botão WhatsApp e resultado de cada contato. `POST /painel/contatos/abrir` registra o contato e abre o `wa.me`.
+- `/painel/configuracoes`: unidade dos ajustes (dias ou aulas), planos (`/planos/novo` e `/planos/[id]`) e mensagens prontas (`/mensagens/nova` e `/mensagens/[id]`).
+- `/painel/vitrine`: atalhos para os cadastros do M1 (eventos, turmas, ritmos, módulos, professores).
+
+**Como usar**
+
+1. Em Configurações, cadastre os planos do estúdio (nome, duração em meses ou dias). Confira as duas mensagens prontas (renovação e convite para voltar) e ajuste o texto; campos que se preenchem sozinhos: `{nome}`, `{aluno}`, `{turma}` e `{fim}`. Só uma mensagem fica ativa por finalidade.
+2. Garanta que as turmas existem (M1) e cadastre os alunos em Alunos, "Novo aluno": nome, nascimento, WhatsApp e turmas. Para menor de 18 anos, informe o responsável (o sistema oferece quem já está cadastrado); as mensagens vão para o responsável.
+3. Na ficha, "Registrar período" (ou "Renovar") escolhe o plano e as datas de início e fim; o fim vem calculado pelo plano e só se muda em acordos especiais. Para quem já tem um período que ainda não terminou, o início sugerido é o dia seguinte ao fim atual; senão, é hoje.
+4. Ajustes, sempre com motivo: "Estender" soma dias ou aulas, "Trancar" pausa (com data de volta ou em aberto, até "Destrancar"), "Transferir" cede dias a outro aluno, "Estender turma" soma dias a quem está vigente numa ou mais turmas (ou no estúdio todo) depois de mostrar quem recebe. Qualquer lançamento errado se desfaz em "Anular" (fica riscado no histórico).
+5. Em Contatos, toque em "WhatsApp" para abrir a conversa com a mensagem pronta; o contato é registrado ao tocar. Depois marque o resultado (vai renovar, vai pensar, não respondeu, não volta, não quer contato). "Não quer contato" tira a pessoa das listas e do botão WhatsApp até alguém marcar "Voltou a aceitar contato" na ficha. Quem foi contatado recentemente desce para o fim da lista.
+
+"Hoje" é sempre o dia em `America/Sao_Paulo` e as datas de período são dias inteiros, seja qual for o fuso do servidor (`pnpm teste:fuso` confere).
+
+**Pendente em produção (dono do projeto)**
+
+- [ ] Configurar o backup fora da VPS e fazer a primeira restauração verificada (`docs/operacao/backup.md`) **antes de cadastrar o primeiro aluno real**: a partir daí o banco guarda dados pessoais.
+- [ ] Cadastrar os planos reais, conferir as mensagens prontas e cadastrar a turma piloto e seus alunos em produção.
+- [ ] A administração (hoje também no papel das atendentes) passa a cadastrar os alunos novos e as mudanças do dia a dia no painel.
+
+**Para o M4: "não quer contato"**
+
+A marca "não quer contato" (resultado de um contato, guardada na pessoa) precisa ser considerada na ativação dos alunos junto com os consentimentos (opt-ins): não pré-marcar nenhum consentimento, como já previsto, e avisar a equipe se a pessoa der opt-in depois de ter pedido para não ser contatada.
 
 ## Fechamento do M0 em produção
 
