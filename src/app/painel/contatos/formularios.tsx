@@ -36,12 +36,27 @@ const ESPERA_MS = 1500;
 export function BotaoWhatsapp({
   alunoIds,
   lista,
+  visto,
+  confirmar = false,
+  filtros,
+  depois,
   children,
   visual = "secundario",
   rotuloAcessivel,
 }: {
   alunoIds: string[];
   lista: "vence_em_breve" | "vencido" | "ficha";
+  /**
+   * Último grupo de contato que esta tela mostra para a pessoa: se outra
+   * pessoa da equipe chamou depois, hoje, a rota pede confirmação.
+   */
+  visto: string | null;
+  /** "Chamar mesmo assim": grava mesmo com o contato recente. */
+  confirmar?: boolean;
+  /** Filtros da lista, para voltar a ela igual se precisar confirmar. */
+  filtros?: { janela: number; todos: boolean; semContato: boolean };
+  /** Endereço desta tela sem o aviso, para onde ela vai depois de enviar. */
+  depois?: string;
   children: React.ReactNode;
   visual?: keyof typeof VISUAIS;
   /** Nome do botão para leitores de tela, quando há um por linha. */
@@ -63,19 +78,25 @@ export function BotaoWhatsapp({
   }, []);
   useEffect(() => limpar, [limpar]);
 
+  /** Mostra o contato feito; depois do aviso, sai do endereço com o aviso. */
+  function atualizar() {
+    if (depois) roteador.replace(depois);
+    else roteador.refresh();
+  }
+
   function aoEnviar() {
     limpar();
     setAbrindo(true);
     espera.current = setTimeout(() => {
       espera.current = null;
       setAbrindo(false);
-      roteador.refresh();
+      atualizar();
     }, ESPERA_MS);
     const ouvinte = () => {
       if (document.visibilityState !== "visible") return;
       document.removeEventListener("visibilitychange", ouvinte);
       aoVoltar.current = null;
-      roteador.refresh();
+      atualizar();
     };
     aoVoltar.current = ouvinte;
     document.addEventListener("visibilitychange", ouvinte);
@@ -93,6 +114,17 @@ export function BotaoWhatsapp({
         <input key={id} type="hidden" name="aluno" value={id} />
       ))}
       <input type="hidden" name="lista" value={lista} />
+      <input type="hidden" name="visto" value={visto ?? ""} />
+      {confirmar && <input type="hidden" name="confirmar" value="1" />}
+      {filtros && (
+        <>
+          <input type="hidden" name="janela" value={filtros.janela} />
+          {filtros.todos && <input type="hidden" name="todos" value="1" />}
+          {filtros.semContato && (
+            <input type="hidden" name="sem_contato" value="1" />
+          )}
+        </>
+      )}
       <button
         type="submit"
         disabled={abrindo}

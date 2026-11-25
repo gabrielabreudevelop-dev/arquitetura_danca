@@ -12,7 +12,10 @@ import {
 import { exigirAdministracao } from "@/servidor/auth/acesso";
 import { obterBanco } from "@/servidor/banco/cliente";
 import { mensagemAtiva } from "@/servidor/configuracoes/mensagens-prontas";
-import { ultimosGruposDosAlunos } from "@/servidor/contatos/contatos";
+import {
+  MENSAGEM_RECENTE,
+  ultimosGruposDosAlunos,
+} from "@/servidor/contatos/contatos";
 import { primeiroNome } from "@/servidor/contatos/mensagens";
 import { mensagemDoErro } from "@/servidor/contatos/pedido-abrir";
 import { textoDoEstado } from "../alunos/textos";
@@ -116,18 +119,28 @@ function QuemRecebe({ linha }: { linha: LinhaContato }) {
 
 function Linha({
   linha,
-  lista,
+  filtros,
   hoje,
   grupos,
+  confirmar,
 }: {
   linha: LinhaContato;
-  lista: FiltrosContatos["lista"];
+  filtros: FiltrosContatos;
   hoje: string;
   /** Grupo do último contato de cada aluno da linha (o resultado vale para todos). */
   grupos: string[];
+  /** Outra pessoa da equipe chamou há pouco: aviso e "Chamar mesmo assim" (R17). */
+  confirmar: boolean;
 }) {
   const { pessoa, alunos, ultimoContato } = linha;
   const varios = alunos.length > 1;
+  const lista = filtros.lista;
+  const botao = {
+    alunoIds: alunos.map((a) => a.id),
+    lista,
+    visto: ultimoContato?.grupoId ?? null,
+    filtros,
+  };
   return (
     <tr className="flex flex-col gap-4 border-linha border-b py-6 first:border-t md:table-row md:first:border-t-0">
       <td className="flex flex-col gap-1 md:table-cell md:py-6 md:pr-6 md:align-top">
@@ -151,10 +164,23 @@ function Linha({
       </td>
       <td className="flex flex-col gap-4 md:table-cell md:w-80 md:py-6 md:align-top">
         <div className="flex flex-col gap-4">
-          {pessoa.whatsapp ? (
+          {pessoa.whatsapp && confirmar ? (
+            <div className="flex flex-col gap-2">
+              <p role="alert" className="text-erro">
+                {MENSAGEM_RECENTE}
+              </p>
+              <BotaoWhatsapp
+                {...botao}
+                confirmar
+                depois={urlContatos(filtros)}
+                rotuloAcessivel={`Chamar ${pessoa.nome} mesmo assim`}
+              >
+                Chamar mesmo assim
+              </BotaoWhatsapp>
+            </div>
+          ) : pessoa.whatsapp ? (
             <BotaoWhatsapp
-              alunoIds={alunos.map((a) => a.id)}
-              lista={lista}
+              {...botao}
               rotuloAcessivel={`WhatsApp para ${pessoa.nome}`}
             >
               WhatsApp
@@ -203,9 +229,11 @@ export default async function Contatos({
   await exigirAdministracao();
   const params = await searchParams;
   const filtros = lerFiltrosContatos(params);
-  const erro = mensagemDoErro(
-    Array.isArray(params.erro) ? params.erro[0] : params.erro,
-  );
+  const codigoErro = Array.isArray(params.erro) ? params.erro[0] : params.erro;
+  const alunoMarcado = Array.isArray(params.aluno)
+    ? params.aluno[0]
+    : params.aluno;
+  const erro = mensagemDoErro(codigoErro);
   const hoje = hojeEmSaoPaulo();
   const agora = new Date();
   const db = obterBanco();
@@ -243,6 +271,14 @@ export default async function Contatos({
     ),
   ];
 
+  // R17: o aviso de contato recente vai na linha do aluno marcado; se ela
+  // não estiver na lista, fica no topo, como os outros erros.
+  const linhaConfirmar =
+    codigoErro === "recente"
+      ? linhas.find((l) => l.alunos.some((a) => a.id === alunoMarcado))
+      : undefined;
+  const erroNoTopo = linhaConfirmar ? null : erro;
+
   const abas = [
     {
       lista: "vence_em_breve" as const,
@@ -263,9 +299,9 @@ export default async function Contatos({
     >
       <h1 className="text-titulo">Contatos</h1>
 
-      {erro && (
+      {erroNoTopo && (
         <p role="alert" className="text-erro">
-          {erro}
+          {erroNoTopo}
         </p>
       )}
 
@@ -382,9 +418,10 @@ export default async function Contatos({
               <Linha
                 key={l.pessoa.pessoaId}
                 linha={l}
-                lista={filtros.lista}
+                filtros={filtros}
                 hoje={hoje}
                 grupos={gruposDa(l)}
+                confirmar={l === linhaConfirmar}
               />
             ))}
           </tbody>

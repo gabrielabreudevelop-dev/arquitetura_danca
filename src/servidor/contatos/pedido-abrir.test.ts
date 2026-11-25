@@ -35,7 +35,42 @@ describe("validarPedidoAbrir", () => {
       tipo: "ok",
       alunoIds: [A, B],
       lista: "vencido",
+      visto: null,
+      confirmar: false,
     });
+  });
+
+  it("lê o último contato visto e a confirmação (R17)", () => {
+    expect(
+      validarPedidoAbrir(
+        cabecalhos(MESMA),
+        formulario([
+          ["aluno", A],
+          ["lista", "vencido"],
+          ["visto", B.toUpperCase()],
+          ["confirmar", "1"],
+        ]),
+      ),
+    ).toMatchObject({ tipo: "ok", visto: B, confirmar: true });
+  });
+
+  it("visto vazio ou inválido vale como nenhum; confirmar só com 1", () => {
+    for (const [visto, confirmar] of [
+      ["", "0"],
+      ["abc", "sim"],
+    ]) {
+      expect(
+        validarPedidoAbrir(
+          cabecalhos(MESMA),
+          formulario([
+            ["aluno", A],
+            ["lista", "vencido"],
+            ["visto", visto],
+            ["confirmar", confirmar],
+          ]),
+        ),
+      ).toMatchObject({ tipo: "ok", visto: null, confirmar: false });
+    }
   });
 
   it("aceita a porta no host (desenvolvimento)", () => {
@@ -143,7 +178,13 @@ describe("validarPedidoAbrir", () => {
           ["lista", lista],
         ]),
       );
-      expect(r).toEqual({ tipo: "ok", alunoIds: [A], lista });
+      expect(r).toEqual({
+        tipo: "ok",
+        alunoIds: [A],
+        lista,
+        visto: null,
+        confirmar: false,
+      });
     }
   });
 });
@@ -156,6 +197,7 @@ describe("códigos de erro", () => {
       "Esta pessoa pediu para não ser contatada.",
       "Cadastre um WhatsApp antes de chamar.",
       "Este aluno está encerrado. Reabra o cadastro antes.",
+      "Outra pessoa da equipe já chamou este contato hoje. Confira antes de chamar de novo.",
     ]) {
       const codigo = codigoDoErro(mensagem);
       expect(codigo).not.toBe("erro");
@@ -241,6 +283,76 @@ describe("responderAbrir", () => {
       alunoIds: [A],
       lista: "vencido",
       feitoPor: B,
+      visto: null,
+      confirmar: false,
+    });
+  });
+
+  describe("chamado há pouco por outra pessoa (R17)", () => {
+    const RECENTE = async () => ({
+      ok: false as const,
+      erros: {
+        _: "Outra pessoa da equipe já chamou este contato hoje. Confira antes de chamar de novo.",
+      },
+    });
+
+    it("lista: volta à mesma lista e filtros, marcando a linha do aluno", async () => {
+      const d = dependencias(RECENTE);
+      const form = formulario([
+        ["aluno", A],
+        ["lista", "vencido"],
+        ["visto", B],
+        ["todos", "1"],
+        ["sem_contato", "1"],
+      ]);
+      expect(await responderAbrir(cabecalhos(MESMA), form, d)).toEqual({
+        status: 303,
+        location: `/painel/contatos?lista=vencido&todos=1&sem_contato=1&erro=recente&aluno=${A}`,
+      });
+      expect(d.registrar).toHaveBeenCalledWith(
+        expect.objectContaining({ visto: B, confirmar: false }),
+      );
+    });
+
+    it("vence em breve com janela de 30 dias", async () => {
+      const d = dependencias(RECENTE);
+      const form = formulario([
+        ["aluno", A],
+        ["lista", "vence_em_breve"],
+        ["janela", "30"],
+      ]);
+      expect(await responderAbrir(cabecalhos(MESMA), form, d)).toEqual({
+        status: 303,
+        location: `/painel/contatos?janela=30&erro=recente&aluno=${A}`,
+      });
+    });
+
+    it("ficha: volta à ficha do aluno", async () => {
+      const d = dependencias(RECENTE);
+      const form = formulario([
+        ["aluno", A],
+        ["lista", "ficha"],
+      ]);
+      expect(await responderAbrir(cabecalhos(MESMA), form, d)).toEqual({
+        status: 303,
+        location: `/painel/alunos/${A}?erro=recente`,
+      });
+    });
+
+    it("com confirmar=1, o registro recebe a confirmação", async () => {
+      const d = dependencias(async () => ({
+        ok: true,
+        valor: { url: "https://wa.me/5527999990000" },
+      }));
+      const form = formulario([
+        ["aluno", A],
+        ["lista", "vencido"],
+        ["confirmar", "1"],
+      ]);
+      await responderAbrir(cabecalhos(MESMA), form, d);
+      expect(d.registrar).toHaveBeenCalledWith(
+        expect.objectContaining({ confirmar: true }),
+      );
     });
   });
 

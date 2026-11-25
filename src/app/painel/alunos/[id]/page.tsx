@@ -11,6 +11,7 @@ import {
 import { obterFicha } from "@/servidor/alunos/ficha";
 import { exigirAdministracao } from "@/servidor/auth/acesso";
 import { obterBanco } from "@/servidor/banco/cliente";
+import { MENSAGEM_RECENTE } from "@/servidor/contatos/contatos";
 import { formatarWhatsapp } from "@/servidor/pessoas/formatar";
 import { BotaoWhatsapp } from "../../contatos/formularios";
 import { textoDoEstado, textoDoPeriodo, textoDoResultado } from "../textos";
@@ -54,11 +55,17 @@ function juntar(itens: ReactNode[]): ReactNode {
 
 export default async function FichaAluno({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   await exigirAdministracao();
   const { id } = await params;
+  // R17: a rota de abrir o WhatsApp volta com `?erro=recente` quando outra
+  // pessoa da equipe chamou hoje depois do contato que a ficha mostrava.
+  const { erro } = await searchParams;
+  const confirmarContato = erro === "recente";
   const hoje = hojeEmSaoPaulo();
   const ficha = await obterFicha(obterBanco(), id, hoje);
   if (!ficha) notFound();
@@ -370,8 +377,28 @@ export default async function FichaAluno({
           </p>
         )}
         <div className="flex flex-col gap-4 md:flex-row md:items-start">
-          {ativo && !motivoSemWhatsapp && (
-            <BotaoWhatsapp alunoIds={[aluno.id]} lista="ficha">
+          {ativo && !motivoSemWhatsapp && confirmarContato && (
+            <div className="flex flex-col gap-2">
+              <p role="alert" className="max-w-prose text-erro">
+                {MENSAGEM_RECENTE}
+              </p>
+              <BotaoWhatsapp
+                alunoIds={[aluno.id]}
+                lista="ficha"
+                visto={contatos[0]?.grupoId ?? null}
+                confirmar
+                depois={base}
+              >
+                Chamar mesmo assim
+              </BotaoWhatsapp>
+            </div>
+          )}
+          {ativo && !motivoSemWhatsapp && !confirmarContato && (
+            <BotaoWhatsapp
+              alunoIds={[aluno.id]}
+              lista="ficha"
+              visto={contatos[0]?.grupoId ?? null}
+            >
               Chamar no WhatsApp
             </BotaoWhatsapp>
           )}

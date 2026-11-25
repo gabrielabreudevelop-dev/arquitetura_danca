@@ -6,6 +6,7 @@ import {
   type DadosAluno,
   encerrarAluno,
 } from "@/servidor/alunos/cadastro";
+import { hojeEmSaoPaulo } from "@/servidor/alunos/datas";
 import { matricular } from "@/servidor/alunos/matriculas";
 import { estender, registrarPeriodo } from "@/servidor/alunos/periodos";
 import {
@@ -818,5 +819,111 @@ describe("registrarContato e resultado", () => {
       .from(bloqueiosContato)
       .where(inArray(bloqueiosContato.pessoaId, [carlaId, mariaId]));
     expect(bloqueados.map((b) => b.pessoaId)).toEqual([mariaId]);
+  });
+});
+
+describe("contato recente de outra pessoa da equipe (R17)", () => {
+  const RECENTE =
+    "Outra pessoa da equipe já chamou este contato hoje. Confira antes de chamar de novo.";
+  let outra: Awaited<ReturnType<typeof criarAdministracao>>;
+  const hoje = hojeEmSaoPaulo();
+
+  beforeAll(async () => {
+    outra = await criarAdministracao(banco.db);
+  });
+
+  async function vencida(nome: string) {
+    const id = await cadastrar({ nome, whatsapp: numero() }, hoje);
+    await periodo(id, "2026-01-01", "2026-01-31");
+    return id;
+  }
+
+  const chamar = (
+    alunoId: string,
+    feitoPor: string,
+    extra: {
+      visto?: string | null;
+      confirmar?: boolean;
+      lista?: "vencido" | "ficha";
+    } = {},
+  ) =>
+    registrarContato(
+      banco.db,
+      {
+        alunoIds: [alunoId],
+        lista: extra.lista ?? "vencido",
+        feitoPor,
+        visto: extra.visto ?? null,
+        confirmar: extra.confirmar ?? false,
+      },
+      hoje,
+    );
+
+  const quantos = async (alunoId: string) =>
+    (
+      await banco.db
+        .select()
+        .from(contatos)
+        .where(eq(contatos.alunoId, alunoId))
+    ).length;
+
+  it("recusa quando outra pessoa chamou hoje depois do que a tela mostrou, sem gravar", async () => {
+    const ana = await vencida("Ana Recente");
+    ok(await chamar(ana, outra.id));
+    expect(erros(await chamar(ana, adm.id))).toEqual({ _: RECENTE });
+    expect(await quantos(ana)).toBe(1);
+  });
+
+  it("vale também na ficha", async () => {
+    const ana = await vencida("Ana Ficha");
+    ok(await chamar(ana, outra.id));
+    expect(erros(await chamar(ana, adm.id, { lista: "ficha" }))).toEqual({
+      _: RECENTE,
+    });
+  });
+
+  it("passa se a tela já mostrava esse contato (visto)", async () => {
+    const ana = await vencida("Ana Vista");
+    const { grupoId } = ok(await chamar(ana, outra.id));
+    ok(await chamar(ana, adm.id, { visto: grupoId }));
+    expect(await quantos(ana)).toBe(2);
+  });
+
+  it("recusa se depois do visto houve outro contato da outra pessoa", async () => {
+    const ana = await vencida("Ana Dupla");
+    const primeiro = ok(await chamar(ana, outra.id));
+    ok(await chamar(ana, outra.id, { visto: primeiro.grupoId }));
+    expect(
+      erros(await chamar(ana, adm.id, { visto: primeiro.grupoId })),
+    ).toEqual({ _: RECENTE });
+  });
+
+  it("visto de outra pessoa de contato não libera", async () => {
+    const ana = await vencida("Ana Alheia");
+    const bia = await vencida("Bia Alheia");
+    ok(await chamar(ana, outra.id));
+    const deBia = ok(await chamar(bia, adm.id));
+    expect(erros(await chamar(ana, adm.id, { visto: deBia.grupoId }))).toEqual({
+      _: RECENTE,
+    });
+  });
+
+  it("chamar mesmo assim (confirmar) grava", async () => {
+    const ana = await vencida("Ana Confirma");
+    ok(await chamar(ana, outra.id));
+    ok(await chamar(ana, adm.id, { confirmar: true }));
+    expect(await quantos(ana)).toBe(2);
+  });
+
+  it("contato da própria pessoa ou de outro dia não pede confirmação", async () => {
+    const ana = await vencida("Ana Mesma");
+    ok(await chamar(ana, adm.id));
+    ok(await chamar(ana, adm.id));
+    const bia = await vencida("Bia Ontem");
+    const { grupoId } = ok(await chamar(bia, outra.id));
+    await banco.sql(
+      `update contatos set criado_em = criado_em - interval '2 days' where grupo_id = '${grupoId}'`,
+    );
+    ok(await chamar(bia, adm.id));
   });
 });

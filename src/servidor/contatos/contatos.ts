@@ -4,7 +4,7 @@
  * resultado e a marca "não quer contato" da pessoa que recebe as mensagens.
  */
 import { randomUUID } from "node:crypto";
-import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, ne, sql } from "drizzle-orm";
 import { type Executor, MENSAGEM_ENCERRADO } from "../alunos/cadastro";
 import {
   type AlunoCarregado,
@@ -33,6 +33,8 @@ export const MENSAGEM_CONTATOS_DIFERENTES =
   "Esses alunos não têm o mesmo contato.";
 export const MENSAGEM_BLOQUEADO = "Esta pessoa pediu para não ser contatada.";
 export const MENSAGEM_SEM_WHATSAPP = "Cadastre um WhatsApp antes de chamar.";
+export const MENSAGEM_RECENTE =
+  "Outra pessoa da equipe já chamou este contato hoje. Confira antes de chamar de novo.";
 const MENSAGEM_RESULTADO = "Escolha um resultado da lista.";
 const MENSAGEM_CONTATO_NAO_ENCONTRADO = "Contato não encontrado.";
 const MENSAGEM_PESSOA_NAO_ENCONTRADA = "Pessoa não encontrada.";
@@ -131,13 +133,26 @@ export async function prepararContato(
   };
 }
 
+type PedidoContato = {
+  alunoIds: string[];
+  lista: ListaContato;
+  feitoPor: string;
+  /** Último grupo de contato que a tela mostrou para a pessoa de contato. */
+  visto?: string | null;
+  /** "Chamar mesmo assim", depois do aviso de contato recente. */
+  confirmar?: boolean;
+};
+
 /**
  * Prepara o contato e grava uma linha por aluno, todas com o mesmo grupo,
  * número, mensagem e texto (e o mesmo horário). Devolve o link para abrir.
+ * R17: se outra pessoa da equipe chamou a mesma pessoa de contato hoje,
+ * depois do contato que a tela mostrava (`visto`), recusa com
+ * `MENSAGEM_RECENTE`, salvo com `confirmar`.
  */
 export async function registrarContato(
   db: Banco,
-  a: { alunoIds: string[]; lista: ListaContato; feitoPor: string },
+  a: PedidoContato,
   hoje: DataIso,
 ): Promise<Resultado<{ url: string; grupoId: string }>> {
   return executarTraduzindo(() => registrarContatoSemTraducao(db, a, hoje), {});
@@ -145,7 +160,7 @@ export async function registrarContato(
 
 async function registrarContatoSemTraducao(
   db: Banco,
-  a: { alunoIds: string[]; lista: ListaContato; feitoPor: string },
+  a: PedidoContato,
   hoje: DataIso,
 ): Promise<Resultado<{ url: string; grupoId: string }>> {
   const preparo = await prepararContato(db, a, hoje);
@@ -160,6 +175,19 @@ async function registrarContatoSemTraducao(
       await travarPessoas(tx, [pessoa.pessoaId]);
       if (await temBloqueioAberto(tx, pessoa.pessoaId)) {
         return falha(MENSAGEM_BLOQUEADO);
+      }
+      // Com a pessoa travada, um contato simultâneo de outra pessoa da
+      // equipe já está gravado (e é visto aqui) ou espera este terminar.
+      if (
+        !a.confirmar &&
+        (await chamadoHojePorOutra(tx, {
+          pessoaId: pessoa.pessoaId,
+          feitoPor: a.feitoPor,
+          visto: a.visto ?? null,
+          hoje,
+        }))
+      ) {
+        return falha(MENSAGEM_RECENTE);
       }
       // Um único INSERT: todas as linhas recebem o mesmo `now()` da transação.
       await tx.insert(contatos).values(
@@ -177,6 +205,38 @@ async function registrarContatoSemTraducao(
       return { ok: true, valor: { url, grupoId } };
     },
   );
+}
+
+/**
+ * Há contato com a pessoa feito hoje (em São Paulo) por outra pessoa da
+ * equipe, mais novo que o grupo `visto` (um grupo dessa mesma pessoa de
+ * contato; sem ele, qualquer contato de hoje conta)?
+ */
+async function chamadoHojePorOutra(
+  tx: Executor,
+  a: {
+    pessoaId: string;
+    feitoPor: string;
+    visto: string | null;
+    hoje: DataIso;
+  },
+): Promise<boolean> {
+  const desdeOVisto = a.visto
+    ? sql`${contatos.criadoEm} > coalesce((select max(v.criado_em) from ${contatos} v where v.grupo_id = ${a.visto} and v.pessoa_contato_id = ${a.pessoaId}), '-infinity'::timestamptz)`
+    : undefined;
+  const [achado] = await tx
+    .select({ id: contatos.id })
+    .from(contatos)
+    .where(
+      and(
+        eq(contatos.pessoaContatoId, a.pessoaId),
+        ne(contatos.criadoPor, a.feitoPor),
+        sql`(${contatos.criadoEm} at time zone 'America/Sao_Paulo')::date = ${a.hoje}::date`,
+        desdeOVisto,
+      ),
+    )
+    .limit(1);
+  return achado !== undefined;
 }
 
 /**
