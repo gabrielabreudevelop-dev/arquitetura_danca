@@ -15,8 +15,12 @@ import { ehUuid, executarTraduzindo } from "../cadastros/comum";
 import type { Resultado } from "../cadastros/resultado";
 import { alunoAtivoOuErro, type Executor } from "./cadastro";
 import { diasEntre, ehDataIso, formatarDia } from "./datas";
-import { fimEfetivo, ultimoPeriodo } from "./estado";
-import { carregarPeriodosDoAluno, travarAluno } from "./periodos";
+import { estaVazio, fimEfetivo, ultimoPeriodo } from "./estado";
+import {
+  bloqueioPorDiasCedidos,
+  carregarPeriodosDoAluno,
+  travarAluno,
+} from "./periodos";
 
 const MENSAGEM_DATA = "Informe uma data válida.";
 const MENSAGEM_MOTIVO = "Informe o motivo.";
@@ -82,7 +86,7 @@ export async function trancar(
           return falha("_", "Já existe um trancamento aberto.");
         }
         const ultimo = ultimoPeriodo(periodos);
-        if (!ultimo || fimEfetivo(ultimo) < hoje) {
+        if (!ultimo || fimEfetivo(ultimo) < hoje || estaVazio(ultimo)) {
           return falha(
             "_",
             "Só é possível trancar um período vigente ou que vai começar.",
@@ -246,6 +250,26 @@ export async function anularTrancamento(
         const t = await buscarTrancamento(tx, a.trancamentoId);
         if (!t) return naoEncontrado;
         if (t.anuladoEm) return falha("_", MENSAGEM_JA_ANULADO);
+        const [linha] = await tx
+          .select({
+            periodoId: ajustesPeriodo.periodoId,
+            dias: ajustesPeriodo.dias,
+          })
+          .from(ajustesPeriodo)
+          .where(
+            and(
+              eq(ajustesPeriodo.trancamentoId, t.id),
+              isNull(ajustesPeriodo.anuladoEm),
+            ),
+          );
+        if (linha) {
+          const cedidos = await bloqueioPorDiasCedidos(
+            tx,
+            linha.periodoId,
+            linha.dias,
+          );
+          if (cedidos) return cedidos;
+        }
         const anulacao = {
           anuladoEm: new Date(),
           anuladoPor: a.feitoPor,

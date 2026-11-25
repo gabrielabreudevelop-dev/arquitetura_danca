@@ -27,7 +27,12 @@ import { rotuloDaTurma } from "./carga";
 import { diasPorAulas } from "./conversao";
 import type { DataIso } from "./datas";
 import { calcularEstado, fimEfetivo } from "./estado";
-import { carregarPeriodosDoAluno, travarAlunosEmOrdem } from "./periodos";
+import {
+  anuleAntesAsTransferencias,
+  carregarPeriodosDoAluno,
+  cedidosAntes,
+  travarAlunosEmOrdem,
+} from "./periodos";
 
 const MENSAGEM_MOTIVO = "Informe o motivo.";
 const MENSAGEM_QUANTIDADE = "Informe um número inteiro maior que zero.";
@@ -442,6 +447,35 @@ export async function anularLote(
         const lote = await buscarLote(tx, a.loteId);
         if (!lote) return naoEncontrado;
         if (lote.anuladoEm) return falha("_", MENSAGEM_JA_ANULADO);
+        // R14: se os dias de alguém já foram cedidos, o lote inteiro fica.
+        const vivas = await tx
+          .select({
+            periodoId: ajustesPeriodo.periodoId,
+            dias: ajustesPeriodo.dias,
+            nome: pessoas.nome,
+          })
+          .from(ajustesPeriodo)
+          .innerJoin(
+            periodosContratados,
+            eq(periodosContratados.id, ajustesPeriodo.periodoId),
+          )
+          .innerJoin(pessoas, eq(pessoas.id, periodosContratados.alunoId))
+          .where(
+            and(
+              eq(ajustesPeriodo.loteId, lote.id),
+              isNull(ajustesPeriodo.anuladoEm),
+            ),
+          )
+          .orderBy(asc(pessoas.nome), asc(ajustesPeriodo.id));
+        for (const linha of vivas) {
+          const cedidos = await cedidosAntes(tx, linha.periodoId, linha.dias);
+          if (cedidos) {
+            return falha(
+              "_",
+              `Os dias de ${linha.nome} neste lote já foram cedidos. ${anuleAntesAsTransferencias(cedidos)}`,
+            );
+          }
+        }
         const agora = new Date();
         const anuladas = await tx
           .update(ajustesPeriodo)

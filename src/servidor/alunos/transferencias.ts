@@ -29,7 +29,10 @@ import {
   ultimoPeriodo,
 } from "./estado";
 import {
+  anuleAntesAsTransferencias,
+  bloqueioPorDiasCedidos,
   carregarPeriodosDoAluno,
+  cedidosAntes,
   diasDoAjuste,
   travarAlunosEmOrdem,
 } from "./periodos";
@@ -266,7 +269,12 @@ export async function anularTransferencia(
         if (t.anuladoEm) return falha("_", MENSAGEM_JA_ANULADO);
 
         const linhas = await tx
-          .select({ id: ajustesPeriodo.id, tipo: ajustesPeriodo.tipo })
+          .select({
+            id: ajustesPeriodo.id,
+            tipo: ajustesPeriodo.tipo,
+            periodoId: ajustesPeriodo.periodoId,
+            dias: ajustesPeriodo.dias,
+          })
           .from(ajustesPeriodo)
           .where(
             and(
@@ -274,9 +282,27 @@ export async function anularTransferencia(
               isNull(ajustesPeriodo.anuladoEm),
             ),
           );
-        const criouPeriodo = !linhas.some(
-          (l) => l.tipo === "transferencia_entrada",
-        );
+        const entrada = linhas.find((l) => l.tipo === "transferencia_entrada");
+        const criouPeriodo = entrada === undefined;
+
+        if (entrada) {
+          const cedidos = await bloqueioPorDiasCedidos(
+            tx,
+            entrada.periodoId,
+            entrada.dias,
+          );
+          if (cedidos) return cedidos;
+        } else {
+          // O período criado some inteiro: se quem recebeu já cedeu dias dele,
+          // diga qual transferência anular antes.
+          const cedidos = await cedidosAntes(tx, t.periodoDestinoId, t.dias);
+          if (cedidos && cedidos.transferencias > 0) {
+            return falha(
+              "_",
+              `Os dias deste lançamento já foram cedidos. ${anuleAntesAsTransferencias(cedidos)}`,
+            );
+          }
+        }
 
         if (criouPeriodo) {
           const outras = await tx

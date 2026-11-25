@@ -41,10 +41,17 @@ describe("fimEfetivo e ultimoPeriodo", () => {
     );
   });
 
-  it("nunca deixa o fim efetivo antes do início", () => {
-    expect(fimEfetivo(periodo("2026-11-10", "2026-11-12", -30))).toBe(
-      "2026-11-10",
+  it("sem limite no início: o período vazio termina no dia anterior ao início (R14)", () => {
+    expect(fimEfetivo(periodo("2026-11-10", "2026-11-12", -3))).toBe(
+      "2026-11-09",
     );
+  });
+
+  it("no mesmo início, o último é o que não está vazio", () => {
+    const vazio = periodo("2026-12-01", "2026-12-31", -31, "vazio");
+    const novo = periodo("2026-12-01", "2026-12-20", 0, "novo");
+    expect(ultimoPeriodo([vazio, novo])?.id).toBe("novo");
+    expect(ultimoPeriodo([novo, vazio])?.id).toBe("novo");
   });
 
   it("o último período é o de maior início", () => {
@@ -115,6 +122,28 @@ describe("calcularEstado", () => {
     const r = resumo([periodo("2026-10-01", "2026-10-31")], [], true);
     expect(r.estado).toBe("encerrado");
     expect(r.ultimo?.fimEfetivo).toBe("2026-10-31");
+  });
+
+  describe("período vazio (todos os dias cedidos, R14)", () => {
+    it("com início hoje, não é vigente: é vencido e o fim exibido é a véspera do início", () => {
+      const r = resumo([periodo("2026-11-22", "2026-12-21", -30)]);
+      expect(r.estado).toBe("vencido");
+      expect(r.ultimo?.fimEfetivo).toBe("2026-11-21");
+    });
+
+    it("com início no futuro, conta como vencido, não como começa em breve", () => {
+      const r = resumo([periodo("2026-12-01", "2026-12-10", -10)]);
+      expect(r.estado).toBe("vencido");
+      expect(r.ultimo?.fimEfetivo).toBe("2026-11-30");
+    });
+
+    it("um período anterior ainda vigente continua valendo", () => {
+      const r = resumo([
+        periodo("2026-11-01", "2026-11-30"),
+        periodo("2026-12-01", "2026-12-10", -10),
+      ]);
+      expect(r.estado).toBe("vigente");
+    });
   });
 
   describe("trancamento", () => {

@@ -381,6 +381,7 @@ async function buscarAjuste(tx: Executor, ajusteId: string) {
     .select({
       id: ajustesPeriodo.id,
       periodoId: ajustesPeriodo.periodoId,
+      dias: ajustesPeriodo.dias,
       anuladoEm: ajustesPeriodo.anuladoEm,
       transferenciaId: ajustesPeriodo.transferenciaId,
       trancamentoId: ajustesPeriodo.trancamentoId,
@@ -426,6 +427,12 @@ export async function anularAjuste(
             "Este lançamento faz parte de um trancamento. Anule o trancamento.",
           );
         }
+        const cedidos = await bloqueioPorDiasCedidos(
+          tx,
+          linha.periodoId,
+          linha.dias,
+        );
+        if (cedidos) return cedidos;
         await tx
           .update(ajustesPeriodo)
           .set({
@@ -478,6 +485,85 @@ export function descreverAjusteCurto(a: {
 function juntarComE(itens: string[]): string {
   if (itens.length <= 1) return itens.join("");
   return `${itens.slice(0, -1).join(", ")} e ${itens[itens.length - 1]}`;
+}
+
+/**
+ * R14: anular `dias` positivos do período não pode deixá-lo terminar antes
+ * da véspera do início (os dias já foram cedidos). Devolve os nomes de quem
+ * recebeu as transferências vivas que saíram do período, para dizer o que
+ * anular antes, ou `null` se a anulação pode seguir.
+ */
+export async function cedidosAntes(
+  tx: Executor,
+  periodoId: string,
+  dias: number,
+): Promise<{ transferencias: number; nomes: string[] } | null> {
+  if (dias <= 0) return null;
+  const [p] = await tx
+    .select({
+      inicio: periodosContratados.inicio,
+      fim: periodosContratados.fim,
+      diasAjustes:
+        sql<number>`coalesce(sum(${ajustesPeriodo.dias}) filter (where ${ajustesPeriodo.anuladoEm} is null), 0)`.mapWith(
+          Number,
+        ),
+    })
+    .from(periodosContratados)
+    .leftJoin(
+      ajustesPeriodo,
+      eq(ajustesPeriodo.periodoId, periodosContratados.id),
+    )
+    .where(eq(periodosContratados.id, periodoId))
+    .groupBy(periodosContratados.id);
+  if (!p) return null;
+  const novoFim = somarDias(p.fim, p.diasAjustes - dias);
+  if (novoFim >= somarDias(p.inicio, -1)) return null;
+  const destino = alias(periodosContratados, "destino");
+  const saidas = await tx
+    .select({ nome: pessoas.nome })
+    .from(ajustesPeriodo)
+    .innerJoin(
+      transferencias,
+      eq(transferencias.id, ajustesPeriodo.transferenciaId),
+    )
+    .innerJoin(destino, eq(destino.id, transferencias.periodoDestinoId))
+    .innerJoin(pessoas, eq(pessoas.id, destino.alunoId))
+    .where(
+      and(
+        eq(ajustesPeriodo.periodoId, periodoId),
+        eq(ajustesPeriodo.tipo, "transferencia_saida"),
+        isNull(ajustesPeriodo.anuladoEm),
+      ),
+    )
+    .orderBy(asc(ajustesPeriodo.criadoEm), asc(ajustesPeriodo.id));
+  return {
+    transferencias: saidas.length,
+    nomes: [...new Set(saidas.map((s) => s.nome))],
+  };
+}
+
+/** "Anule antes a transferência para Carla Souza." (ou o plural). */
+export function anuleAntesAsTransferencias(c: {
+  transferencias: number;
+  nomes: string[];
+}): string {
+  return c.transferencias === 1
+    ? `Anule antes a transferência para ${c.nomes[0]}.`
+    : `Anule antes as transferências para ${juntarComE(c.nomes)}.`;
+}
+
+/** Mensagem de bloqueio de uma linha cujos dias já foram cedidos. */
+export async function bloqueioPorDiasCedidos(
+  tx: Executor,
+  periodoId: string,
+  dias: number,
+): Promise<Falha | null> {
+  const cedidos = await cedidosAntes(tx, periodoId, dias);
+  if (!cedidos) return null;
+  return falha(
+    "_",
+    `Os dias deste lançamento já foram cedidos. ${anuleAntesAsTransferencias(cedidos)}`,
+  );
 }
 
 /** Lançamentos vivos do período, descritos para a mensagem de bloqueio. */

@@ -251,7 +251,8 @@ describe("transferir", () => {
     });
     const r = await mover(ana.aluno.id, joao.aluno.id, { quantidade: 10 });
     expect(r.ok).toBe(true);
-    expect(await fimDoUltimo(ana.aluno.id)).toBe("2026-12-01");
+    // R14: sem limite no início, o período cedido inteiro fica vazio (véspera do início).
+    expect(await fimDoUltimo(ana.aluno.id)).toBe("2026-11-30");
   });
 
   it("em aulas: 1 aula de uma turma de ter e qui vale 4 dias", async () => {

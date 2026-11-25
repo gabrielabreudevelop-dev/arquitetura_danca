@@ -37,18 +37,36 @@ export type ResumoPeriodo = {
   trancamentoAberto: TrancamentoParaEstado | null;
 };
 
-/** Fim do período com os ajustes; nunca antes do início. */
+/**
+ * Fim do período com os ajustes, sem limite (R14). Quem cede todos os dias
+ * deixa o período "vazio": o fim efetivo fica na véspera do início, como no
+ * histórico. As anulações que o deixariam ainda mais curto são recusadas.
+ */
 export function fimEfetivo(p: PeriodoParaEstado): DataIso {
-  const fim = somarDias(p.fim, p.diasAjustes);
-  return fim < p.inicio ? p.inicio : fim;
+  return somarDias(p.fim, p.diasAjustes);
 }
 
+/** Período cujo fim efetivo ficou antes do início: nunca está vigente. */
+export function estaVazio(p: PeriodoParaEstado): boolean {
+  return fimEfetivo(p) < p.inicio;
+}
+
+/**
+ * O período de maior início. No mesmo início (um período novo que começa
+ * onde um vazio começaria), vale o que não está vazio.
+ */
 export function ultimoPeriodo(
   periodos: PeriodoParaEstado[],
 ): PeriodoParaEstado | null {
   let ultimo: PeriodoParaEstado | null = null;
   for (const p of periodos) {
-    if (ultimo === null || p.inicio > ultimo.inicio) ultimo = p;
+    if (
+      ultimo === null ||
+      p.inicio > ultimo.inicio ||
+      (p.inicio === ultimo.inicio && fimEfetivo(p) > fimEfetivo(ultimo))
+    ) {
+      ultimo = p;
+    }
   }
   return ultimo;
 }
@@ -83,7 +101,10 @@ export function calcularEstado(
   if (periodos.some((p) => p.inicio <= hoje && hoje <= fimEfetivo(p))) {
     return resumo("vigente");
   }
-  if (ultimo.inicio > hoje) return resumo("comeca_em_breve");
+  // Período vazio conta como vencido, mesmo com início no futuro (R14).
+  if (ultimo.inicio > hoje && !estaVazio(ultimo)) {
+    return resumo("comeca_em_breve");
+  }
   return resumo("vencido");
 }
 
