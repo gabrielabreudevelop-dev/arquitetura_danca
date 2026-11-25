@@ -479,6 +479,7 @@ describe("registrarContato e resultado", () => {
     const outra = await criarAdministracao(banco.db);
     ok(
       await marcarResultado(banco.db, {
+        pessoaId: carlaId,
         grupoIds: [grupoId],
         resultado: "nao_quer_contato",
         feitoPor: outra.id,
@@ -507,6 +508,7 @@ describe("registrarContato e resultado", () => {
     // De novo (pelo resultado ou pela ficha): nenhum bloqueio a mais.
     ok(
       await marcarResultado(banco.db, {
+        pessoaId: carlaId,
         grupoIds: [grupoId],
         resultado: "nao_quer_contato",
         feitoPor: adm.id,
@@ -562,6 +564,7 @@ describe("registrarContato e resultado", () => {
     );
     ok(
       await marcarResultado(banco.db, {
+        pessoaId: id,
         grupoIds: [grupoId],
         resultado: "vai_pensar",
         feitoPor: adm.id,
@@ -569,6 +572,7 @@ describe("registrarContato e resultado", () => {
     );
     ok(
       await marcarResultado(banco.db, {
+        pessoaId: id,
         grupoIds: [grupoId],
         resultado: "vai_renovar",
         feitoPor: adm.id,
@@ -598,6 +602,7 @@ describe("registrarContato e resultado", () => {
     expect(
       erros(
         await marcarResultado(banco.db, {
+          pessoaId: id,
           grupoIds: [grupoId],
           resultado: "talvez",
           feitoPor: adm.id,
@@ -613,6 +618,7 @@ describe("registrarContato e resultado", () => {
       expect(
         erros(
           await marcarResultado(banco.db, {
+            pessoaId: id,
             grupoIds: outros,
             resultado: "vai_pensar",
             feitoPor: adm.id,
@@ -641,7 +647,7 @@ describe("registrarContato e resultado", () => {
   });
 
   it("o resultado da linha vale para o último contato de cada aluno", async () => {
-    const { bruno, lia } = await irmaos();
+    const { bruno, lia, carlaId } = await irmaos();
     const juntos = ok(
       await registrarContato(
         banco.db,
@@ -658,13 +664,17 @@ describe("registrarContato e resultado", () => {
       ),
     ).grupoId;
 
-    const ultimos = await ultimosGruposDosAlunos(banco.db, [bruno, lia]);
+    const ultimos = await ultimosGruposDosAlunos(banco.db, [
+      { alunoId: bruno, pessoaId: carlaId },
+      { alunoId: lia, pessoaId: carlaId },
+    ]);
     expect(ultimos.get(bruno)).toBe(soBruno);
     expect(ultimos.get(lia)).toBe(juntos);
 
     // A linha "Bruno e Lia" manda os dois grupos.
     ok(
       await marcarResultado(banco.db, {
+        pessoaId: carlaId,
         grupoIds: [...new Set(ultimos.values())],
         resultado: "vai_pensar",
         feitoPor: adm.id,
@@ -689,6 +699,7 @@ describe("registrarContato e resultado", () => {
     );
     erros(
       await marcarResultado(banco.db, {
+        pessoaId: id,
         grupoIds: [grupoId, "00000000-0000-4000-8000-000000000000"],
         resultado: "vai_pensar",
         feitoPor: adm.id,
@@ -734,5 +745,78 @@ describe("registrarContato e resultado", () => {
       outra.release();
       await pool.end();
     }
+  });
+
+  it("responsável trocado: a linha nova só usa e só bloqueia o contato novo", async () => {
+    const carla = numero();
+    const ana = await cadastrar({
+      nome: "Ana Troca",
+      nascimento: "2015-01-01",
+      responsavel: { novo: true, nome: "Carla Antiga", whatsapp: carla },
+    });
+    await periodo(ana, "2026-10-01", "2026-10-31");
+    const [{ responsavel_id: carlaId }] = (await banco.sql(
+      `select responsavel_id from responsabilidades where aluno_id = '${ana}'`,
+    )) as { responsavel_id: string }[];
+    const daCarla = ok(
+      await registrarContato(
+        banco.db,
+        { alunoIds: [ana], lista: "vencido", feitoPor: adm.id },
+        HOJE,
+      ),
+    ).grupoId;
+
+    // A responsável passa a ser Maria.
+    const [{ id: mariaId }] = (await banco.sql(
+      `insert into pessoas (nome, whatsapp) values ('Maria Nova', '${numero()}') returning id`,
+    )) as { id: string }[];
+    await banco.sql(
+      `update responsabilidades set responsavel_id = '${mariaId}' where aluno_id = '${ana}'`,
+    );
+    const linhaDaMaria = [{ alunoId: ana, pessoaId: mariaId }];
+    expect((await ultimosGruposDosAlunos(banco.db, linhaDaMaria)).size).toBe(0);
+    const daMaria = ok(
+      await registrarContato(
+        banco.db,
+        { alunoIds: [ana], lista: "vencido", feitoPor: adm.id },
+        HOJE,
+      ),
+    ).grupoId;
+    expect(
+      (await ultimosGruposDosAlunos(banco.db, linhaDaMaria)).get(ana),
+    ).toBe(daMaria);
+
+    // Lista adulterada (grupo de outra pessoa): recusada, nada muda.
+    for (const grupoIds of [[daCarla], [daMaria, daCarla]]) {
+      expect(
+        erros(
+          await marcarResultado(banco.db, {
+            pessoaId: mariaId,
+            grupoIds,
+            resultado: "nao_quer_contato",
+            feitoPor: adm.id,
+          }),
+        ),
+      ).toEqual({ _: "Contato não encontrado." });
+    }
+    const intactas = await banco.db
+      .select()
+      .from(contatos)
+      .where(eq(contatos.alunoId, ana));
+    for (const c of intactas) expect(c.resultado).toBeNull();
+
+    ok(
+      await marcarResultado(banco.db, {
+        pessoaId: mariaId,
+        grupoIds: [daMaria],
+        resultado: "nao_quer_contato",
+        feitoPor: adm.id,
+      }),
+    );
+    const bloqueados = await banco.db
+      .select({ pessoaId: bloqueiosContato.pessoaId })
+      .from(bloqueiosContato)
+      .where(inArray(bloqueiosContato.pessoaId, [carlaId, mariaId]));
+    expect(bloqueados.map((b) => b.pessoaId)).toEqual([mariaId]);
   });
 });

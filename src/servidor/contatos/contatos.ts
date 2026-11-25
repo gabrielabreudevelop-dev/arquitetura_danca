@@ -205,25 +205,40 @@ async function temBloqueioAberto(
 }
 
 /**
- * Grupo do contato mais recente de cada aluno. Uma linha da lista pode juntar
- * irmãos cujos últimos contatos são de grupos diferentes (um deles chamado
- * sozinho pela ficha): o resultado da linha vale para todos esses grupos.
+ * Grupo do contato mais recente de cada aluno com a pessoa de contato dele
+ * (contatos com quem era o contato antes não contam). Uma linha da lista pode
+ * juntar irmãos cujos últimos contatos são de grupos diferentes (um deles
+ * chamado sozinho pela ficha): o resultado da linha vale para todos esses grupos.
  */
 export async function ultimosGruposDosAlunos(
   db: Executor,
-  alunoIds: string[],
+  alunos: { alunoId: string; pessoaId: string }[],
 ): Promise<Map<string, string>> {
-  const ids = distintos(alunoIds.map((id) => id.toLowerCase())).filter(ehUuid);
-  if (ids.length === 0) return new Map();
+  const pessoaDe = new Map(
+    alunos
+      .filter((a) => ehUuid(a.alunoId) && ehUuid(a.pessoaId))
+      .map((a) => [a.alunoId.toLowerCase(), a.pessoaId.toLowerCase()]),
+  );
+  if (pessoaDe.size === 0) return new Map();
   const linhas = await db
-    .selectDistinctOn([contatos.alunoId], {
+    .selectDistinctOn([contatos.alunoId, contatos.pessoaContatoId], {
       alunoId: contatos.alunoId,
+      pessoaId: contatos.pessoaContatoId,
       grupoId: contatos.grupoId,
     })
     .from(contatos)
-    .where(inArray(contatos.alunoId, ids))
-    .orderBy(asc(contatos.alunoId), desc(contatos.criadoEm), desc(contatos.id));
-  return new Map(linhas.map((l) => [l.alunoId, l.grupoId]));
+    .where(inArray(contatos.alunoId, [...pessoaDe.keys()]))
+    .orderBy(
+      asc(contatos.alunoId),
+      asc(contatos.pessoaContatoId),
+      desc(contatos.criadoEm),
+      desc(contatos.id),
+    );
+  return new Map(
+    linhas
+      .filter((l) => pessoaDe.get(l.alunoId) === l.pessoaId)
+      .map((l) => [l.alunoId, l.grupoId]),
+  );
 }
 
 /** Abre o bloqueio da pessoa, se ainda não houver um aberto. */
@@ -241,19 +256,26 @@ async function abrirBloqueio(
 
 /**
  * Marca (ou troca) o resultado de todas as linhas dos grupos (os últimos
- * contatos dos alunos de uma linha da lista). "Não quer contato" também marca
- * a pessoa de contato. Grupo inexistente: nada muda.
+ * contatos dos alunos de uma linha da lista, todos com a mesma pessoa de
+ * contato). "Não quer contato" também marca essa pessoa. Grupo inexistente ou
+ * de outra pessoa: nada muda.
  */
 export async function marcarResultado(
   db: Banco,
-  a: { grupoIds: string[]; resultado: string; feitoPor: string },
+  a: {
+    pessoaId: string;
+    grupoIds: string[];
+    resultado: string;
+    feitoPor: string;
+  },
 ): Promise<Resultado<null>> {
   const resultado = RESULTADOS.find((r) => r === a.resultado);
   if (!resultado) return falha(MENSAGEM_RESULTADO, "resultado");
   const grupos = distintos(a.grupoIds.map((g) => g.toLowerCase()));
-  if (grupos.length === 0 || !grupos.every(ehUuid)) {
+  if (!ehUuid(a.pessoaId) || grupos.length === 0 || !grupos.every(ehUuid)) {
     return falha(MENSAGEM_CONTATO_NAO_ENCONTRADO);
   }
+  const pessoaId = a.pessoaId.toLowerCase();
   return db.transaction(async (tx): Promise<Resultado<null>> => {
     const existentes = await tx
       .select({
@@ -262,14 +284,17 @@ export async function marcarResultado(
       })
       .from(contatos)
       .where(inArray(contatos.grupoId, grupos));
-    if (new Set(existentes.map((e) => e.grupoId)).size !== grupos.length) {
+    const todosDaPessoa = existentes.every(
+      (e) => e.pessoaContatoId === pessoaId,
+    );
+    if (
+      !todosDaPessoa ||
+      new Set(existentes.map((e) => e.grupoId)).size !== grupos.length
+    ) {
       return falha(MENSAGEM_CONTATO_NAO_ENCONTRADO);
     }
-    const pessoasDeContato = distintos(
-      existentes.map((e) => e.pessoaContatoId),
-    );
     if (resultado === "nao_quer_contato") {
-      await travarPessoas(tx, pessoasDeContato);
+      await travarPessoas(tx, [pessoaId]);
     }
     await tx
       .update(contatos)
@@ -280,9 +305,7 @@ export async function marcarResultado(
       })
       .where(inArray(contatos.grupoId, grupos));
     if (resultado === "nao_quer_contato") {
-      for (const pessoaId of pessoasDeContato) {
-        await abrirBloqueio(tx, pessoaId, a.feitoPor);
-      }
+      await abrirBloqueio(tx, pessoaId, a.feitoPor);
     }
     return { ok: true, valor: null };
   });

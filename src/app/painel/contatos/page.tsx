@@ -173,6 +173,7 @@ function Linha({
           {ultimoContato && grupos.length > 0 && (
             <FormularioResultado
               key={`${grupos.join()}-${ultimoContato.resultado}`}
+              pessoaId={pessoa.pessoaId}
               grupoIds={grupos}
               atual={ultimoContato.resultado}
               nome={pessoa.nome}
@@ -230,10 +231,16 @@ export default async function Contatos({
   const linhas = filtros.lista === "vence_em_breve" ? vencem : vencidos;
   const ultimosGrupos = await ultimosGruposDosAlunos(
     db,
-    linhas.flatMap((l) => l.alunos.map((a) => a.id)),
+    linhas.flatMap((l) =>
+      l.alunos.map((a) => ({ alunoId: a.id, pessoaId: l.pessoa.pessoaId })),
+    ),
   );
-  const gruposDa = (l: LinhaContato) => [
-    ...new Set(l.alunos.flatMap((a) => ultimosGrupos.get(a.id) ?? [])),
+  const gruposDa = (l: LinhaContato): string[] => [
+    ...new Set(
+      l.alunos
+        .map((a) => ultimosGrupos.get(a.id))
+        .filter((g): g is string => g !== undefined),
+    ),
   ];
 
   const abas = [

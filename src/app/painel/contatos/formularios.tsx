@@ -107,10 +107,13 @@ export function BotaoWhatsapp({
 
 /** Resultado do último contato da linha, com o atual já escolhido. */
 export function FormularioResultado({
+  pessoaId,
   grupoIds,
   atual,
   nome,
 }: {
+  /** Pessoa de contato da linha (todos os grupos são dela). */
+  pessoaId: string;
   /** Grupo do último contato de cada aluno da linha. */
   grupoIds: string[];
   atual: string | null;
@@ -123,6 +126,7 @@ export function FormularioResultado({
   const erro = estado.erros?.resultado;
   return (
     <form key={versao} action={acao} className="flex flex-col gap-2">
+      <input type="hidden" name="pessoa" value={pessoaId} />
       {grupoIds.map((g) => (
         <input key={g} type="hidden" name="grupo" value={g} />
       ))}
