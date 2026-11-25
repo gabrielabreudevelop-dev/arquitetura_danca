@@ -1,6 +1,7 @@
 import { eq } from "drizzle-orm";
 import type { Banco } from "../banco/cliente";
 import { configuracoes } from "../banco/esquema";
+import { executarTraduzindo } from "../cadastros/comum";
 import type { Resultado } from "../cadastros/resultado";
 
 const CHAVE = "unidade_ajustes";
@@ -23,12 +24,14 @@ export async function salvarUnidadeAjustes(
   if (unidade !== "dias" && unidade !== "aulas") {
     return { ok: false, erros: { unidade: "Escolha dias ou aulas." } };
   }
-  await db
-    .insert(configuracoes)
-    .values({ chave: CHAVE, valor: unidade })
-    .onConflictDoUpdate({
-      target: configuracoes.chave,
-      set: { valor: unidade },
-    });
-  return { ok: true, valor: null };
+  return executarTraduzindo(async () => {
+    await db
+      .insert(configuracoes)
+      .values({ chave: CHAVE, valor: unidade })
+      .onConflictDoUpdate({
+        target: configuracoes.chave,
+        set: { valor: unidade },
+      });
+    return { ok: true as const, valor: null };
+  }, {});
 }

@@ -141,14 +141,18 @@ export async function excluirMensagem(
   if (!ehUuid(id)) {
     return { ok: false, erros: { _: "Mensagem não encontrada." } };
   }
-  return db.transaction(async (tx): Promise<Resultado<null>> => {
-    const [uso] = await tx
-      .select({ id: contatos.id })
-      .from(contatos)
-      .where(eq(contatos.mensagemId, id))
-      .limit(1);
-    if (uso) return { ok: false, erros: { _: MENSAGEM_EM_USO } };
-    await tx.delete(mensagensProntas).where(eq(mensagensProntas.id, id));
-    return { ok: true, valor: null };
-  });
+  return executarTraduzindo(
+    () =>
+      db.transaction(async (tx): Promise<Resultado<null>> => {
+        const [uso] = await tx
+          .select({ id: contatos.id })
+          .from(contatos)
+          .where(eq(contatos.mensagemId, id))
+          .limit(1);
+        if (uso) return { ok: false, erros: { _: MENSAGEM_EM_USO } };
+        await tx.delete(mensagensProntas).where(eq(mensagensProntas.id, id));
+        return { ok: true, valor: null };
+      }),
+    {},
+  );
 }

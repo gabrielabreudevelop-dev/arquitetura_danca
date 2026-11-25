@@ -14,7 +14,7 @@ import {
 import { type DataIso, formatarDia } from "../alunos/datas";
 import type { Banco } from "../banco/cliente";
 import { bloqueiosContato, contatos, pessoas } from "../banco/esquema";
-import { ehUuid } from "../cadastros/comum";
+import { ehUuid, executarTraduzindo } from "../cadastros/comum";
 import type { Resultado } from "../cadastros/resultado";
 import {
   type Finalidade,
@@ -136,6 +136,14 @@ export async function prepararContato(
  * número, mensagem e texto (e o mesmo horário). Devolve o link para abrir.
  */
 export async function registrarContato(
+  db: Banco,
+  a: { alunoIds: string[]; lista: ListaContato; feitoPor: string },
+  hoje: DataIso,
+): Promise<Resultado<{ url: string; grupoId: string }>> {
+  return executarTraduzindo(() => registrarContatoSemTraducao(db, a, hoje), {});
+}
+
+async function registrarContatoSemTraducao(
   db: Banco,
   a: { alunoIds: string[]; lista: ListaContato; feitoPor: string },
   hoje: DataIso,
@@ -276,39 +284,43 @@ export async function marcarResultado(
     return falha(MENSAGEM_CONTATO_NAO_ENCONTRADO);
   }
   const pessoaId = a.pessoaId.toLowerCase();
-  return db.transaction(async (tx): Promise<Resultado<null>> => {
-    const existentes = await tx
-      .select({
-        grupoId: contatos.grupoId,
-        pessoaContatoId: contatos.pessoaContatoId,
-      })
-      .from(contatos)
-      .where(inArray(contatos.grupoId, grupos));
-    const todosDaPessoa = existentes.every(
-      (e) => e.pessoaContatoId === pessoaId,
-    );
-    if (
-      !todosDaPessoa ||
-      new Set(existentes.map((e) => e.grupoId)).size !== grupos.length
-    ) {
-      return falha(MENSAGEM_CONTATO_NAO_ENCONTRADO);
-    }
-    if (resultado === "nao_quer_contato") {
-      await travarPessoas(tx, [pessoaId]);
-    }
-    await tx
-      .update(contatos)
-      .set({
-        resultado,
-        resultadoPor: a.feitoPor,
-        resultadoEm: sql`now()`,
-      })
-      .where(inArray(contatos.grupoId, grupos));
-    if (resultado === "nao_quer_contato") {
-      await abrirBloqueio(tx, pessoaId, a.feitoPor);
-    }
-    return { ok: true, valor: null };
-  });
+  return executarTraduzindo(
+    () =>
+      db.transaction(async (tx): Promise<Resultado<null>> => {
+        const existentes = await tx
+          .select({
+            grupoId: contatos.grupoId,
+            pessoaContatoId: contatos.pessoaContatoId,
+          })
+          .from(contatos)
+          .where(inArray(contatos.grupoId, grupos));
+        const todosDaPessoa = existentes.every(
+          (e) => e.pessoaContatoId === pessoaId,
+        );
+        if (
+          !todosDaPessoa ||
+          new Set(existentes.map((e) => e.grupoId)).size !== grupos.length
+        ) {
+          return falha(MENSAGEM_CONTATO_NAO_ENCONTRADO);
+        }
+        if (resultado === "nao_quer_contato") {
+          await travarPessoas(tx, [pessoaId]);
+        }
+        await tx
+          .update(contatos)
+          .set({
+            resultado,
+            resultadoPor: a.feitoPor,
+            resultadoEm: sql`now()`,
+          })
+          .where(inArray(contatos.grupoId, grupos));
+        if (resultado === "nao_quer_contato") {
+          await abrirBloqueio(tx, pessoaId, a.feitoPor);
+        }
+        return { ok: true, valor: null };
+      }),
+    {},
+  );
 }
 
 async function pessoaExiste(db: Banco, pessoaId: string): Promise<boolean> {
@@ -327,12 +339,16 @@ export async function marcarNaoQuerContato(
 ): Promise<Resultado<null>> {
   if (!ehUuid(a.pessoaId)) return falha(MENSAGEM_PESSOA_NAO_ENCONTRADA);
   const pessoaId = a.pessoaId.toLowerCase();
-  return db.transaction(async (tx): Promise<Resultado<null>> => {
-    const [existe] = await travarPessoas(tx, [pessoaId]);
-    if (!existe) return falha(MENSAGEM_PESSOA_NAO_ENCONTRADA);
-    await abrirBloqueio(tx, pessoaId, a.feitoPor);
-    return { ok: true, valor: null };
-  });
+  return executarTraduzindo(
+    () =>
+      db.transaction(async (tx): Promise<Resultado<null>> => {
+        const [existe] = await travarPessoas(tx, [pessoaId]);
+        if (!existe) return falha(MENSAGEM_PESSOA_NAO_ENCONTRADA);
+        await abrirBloqueio(tx, pessoaId, a.feitoPor);
+        return { ok: true, valor: null };
+      }),
+    {},
+  );
 }
 
 /** "Voltou a aceitar contato": fecha o bloqueio aberto, com quem e quando. */
@@ -340,17 +356,19 @@ export async function desfazerNaoQuerContato(
   db: Banco,
   a: { pessoaId: string; feitoPor: string },
 ): Promise<Resultado<null>> {
-  if (!(await pessoaExiste(db, a.pessoaId))) {
-    return falha(MENSAGEM_PESSOA_NAO_ENCONTRADA);
-  }
-  await db
-    .update(bloqueiosContato)
-    .set({ desfeitoEm: sql`now()`, desfeitoPor: a.feitoPor })
-    .where(
-      and(
-        eq(bloqueiosContato.pessoaId, a.pessoaId.toLowerCase()),
-        isNull(bloqueiosContato.desfeitoEm),
-      ),
-    );
-  return { ok: true, valor: null };
+  return executarTraduzindo(async () => {
+    if (!(await pessoaExiste(db, a.pessoaId))) {
+      return falha(MENSAGEM_PESSOA_NAO_ENCONTRADA);
+    }
+    await db
+      .update(bloqueiosContato)
+      .set({ desfeitoEm: sql`now()`, desfeitoPor: a.feitoPor })
+      .where(
+        and(
+          eq(bloqueiosContato.pessoaId, a.pessoaId.toLowerCase()),
+          isNull(bloqueiosContato.desfeitoEm),
+        ),
+      );
+    return { ok: true as const, valor: null };
+  }, {});
 }

@@ -1,5 +1,26 @@
+import { DrizzleQueryError } from "drizzle-orm";
 import { z } from "zod";
-import { type Resultado, traduzirErroBanco } from "./resultado";
+import { acharErroPg, type Resultado, traduzirErroBanco } from "./resultado";
+
+/** O que vai ao log e à tela quando o banco falha sem tradução (R16). */
+export const MENSAGEM_FALHA_BANCO = "Falha no banco de dados.";
+
+/**
+ * Erro do banco não traduzido: a mensagem do Drizzle traz a consulta e os
+ * parâmetros ("params: Ana Souza, …") e a do pg pode trazer o `detail` com a
+ * linha. Loga só a mensagem fixa e o código do pg, e devolve um erro novo,
+ * sem `cause`, para relançar. Qualquer outro erro volta como está.
+ */
+export function erroSemDadosPessoais(erro: unknown): unknown {
+  const pg = acharErroPg(erro);
+  if (!(erro instanceof DrizzleQueryError) && !pg) return erro;
+  console.error(
+    pg?.code
+      ? `${MENSAGEM_FALHA_BANCO} Código ${pg.code}.`
+      : MENSAGEM_FALHA_BANCO,
+  );
+  return new Error(MENSAGEM_FALHA_BANCO);
+}
 
 /**
  * Campo `ordem` de formulário: aceita número ou texto, ignora espaços nas pontas
@@ -18,7 +39,8 @@ export const ordemSchema = z.preprocess(
 /**
  * Roda uma operação de banco que devolve `Resultado`. Erros do banco conhecidos
  * (pelo nome da constraint em `mapa`, ou chave estrangeira) viram erros de
- * formulário; qualquer outro é relançado.
+ * formulário; outro erro do banco é relançado sem dados pessoais
+ * (`erroSemDadosPessoais`); erro que não é do banco é relançado como está.
  */
 export async function executarTraduzindo<T>(
   operacao: () => Promise<Resultado<T>>,
@@ -29,7 +51,7 @@ export async function executarTraduzindo<T>(
   } catch (erro) {
     const erros = traduzirErroBanco(erro, mapa);
     if (erros) return { ok: false, erros };
-    throw erro;
+    throw erroSemDadosPessoais(erro);
   }
 }
 

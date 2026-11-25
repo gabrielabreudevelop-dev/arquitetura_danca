@@ -11,7 +11,11 @@ import {
   responsabilidades,
   turmas,
 } from "../banco/esquema";
-import { ehUuid, executarTraduzindo } from "../cadastros/comum";
+import {
+  ehUuid,
+  erroSemDadosPessoais,
+  executarTraduzindo,
+} from "../cadastros/comum";
 import {
   errosDeZod,
   MENSAGEM_EM_USO,
@@ -280,7 +284,7 @@ async function transacaoComErros<T>(
   } catch (erro) {
     if (erro instanceof ErrosDeFormulario)
       return { ok: false, erros: erro.erros };
-    throw erro;
+    throw erroSemDadosPessoais(erro);
   }
 }
 
@@ -468,23 +472,31 @@ export async function tornarAluno(
   db: Banco,
   pessoaId: string,
 ): Promise<Resultado<null>> {
-  if (!ehUuid(pessoaId) || !(await existePessoa(db, pessoaId))) {
+  if (!ehUuid(pessoaId)) {
     return { ok: false, erros: { _: "Pessoa não encontrada." } };
   }
-  const [papel] = await db
-    .select({ ativo: pessoaPapeis.ativo })
-    .from(pessoaPapeis)
-    .where(
-      and(eq(pessoaPapeis.pessoaId, pessoaId), eq(pessoaPapeis.papel, "aluno")),
-    );
-  if (papel && !papel.ativo) {
-    return { ok: false, erros: { _: MENSAGEM_ENCERRADO } };
-  }
-  await db
-    .insert(pessoaPapeis)
-    .values({ pessoaId, papel: "aluno", ativo: true })
-    .onConflictDoNothing();
-  return { ok: true, valor: null };
+  return executarTraduzindo<null>(async () => {
+    if (!(await existePessoa(db, pessoaId))) {
+      return { ok: false, erros: { _: "Pessoa não encontrada." } };
+    }
+    const [papel] = await db
+      .select({ ativo: pessoaPapeis.ativo })
+      .from(pessoaPapeis)
+      .where(
+        and(
+          eq(pessoaPapeis.pessoaId, pessoaId),
+          eq(pessoaPapeis.papel, "aluno"),
+        ),
+      );
+    if (papel && !papel.ativo) {
+      return { ok: false, erros: { _: MENSAGEM_ENCERRADO } };
+    }
+    await db
+      .insert(pessoaPapeis)
+      .values({ pessoaId, papel: "aluno", ativo: true })
+      .onConflictDoNothing();
+    return { ok: true, valor: null };
+  }, {});
 }
 
 /** Trava a linha da pessoa até o fim da transação. */

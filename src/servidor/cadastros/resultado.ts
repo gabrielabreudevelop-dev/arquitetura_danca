@@ -21,7 +21,7 @@ export const MENSAGEM_EM_USO = "Está em uso; desative em vez de excluir.";
 type ErroPg = { code?: string; constraint?: string };
 
 /** Acha o erro do pg, mesmo embrulhado pelo Drizzle (`cause`). */
-function acharErroPg(erro: unknown): ErroPg | null {
+export function acharErroPg(erro: unknown): ErroPg | null {
   let atual: unknown = erro;
   for (let i = 0; i < 5 && atual && typeof atual === "object"; i++) {
     const { code, constraint, cause } = atual as ErroPg & { cause?: unknown };
