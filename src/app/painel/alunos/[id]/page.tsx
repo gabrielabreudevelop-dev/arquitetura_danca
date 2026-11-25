@@ -12,8 +12,10 @@ import { obterFicha } from "@/servidor/alunos/ficha";
 import { exigirAdministracao } from "@/servidor/auth/acesso";
 import { obterBanco } from "@/servidor/banco/cliente";
 import { formatarWhatsapp } from "@/servidor/pessoas/formatar";
+import { BotaoWhatsapp } from "../../contatos/formularios";
 import { textoDoEstado, textoDoPeriodo, textoDoResultado } from "../textos";
 import { FormularioExcluir, FormularioReabrir } from "./formularios/cadastro";
+import { FormularioNaoQuerContato } from "./formularios/contato";
 
 export const dynamic = "force-dynamic";
 
@@ -109,6 +111,17 @@ export default async function FichaAluno({
     );
   if (naoQuerContato)
     avisos.push(`Não quer contato desde ${dia(naoQuerContato.em, hoje)}`);
+
+  // Quem recebe as mensagens e por que o WhatsApp pode não estar disponível.
+  const contato = aluno.contato;
+  const quemRecebe = contato.ehResponsavel
+    ? `As mensagens vão para ${contato.nome} (responsável). A marca de não quer contato vale para todos os alunos com esse responsável.`
+    : null;
+  const motivoSemWhatsapp = naoQuerContato
+    ? `${contato.nome} não quer contato. O WhatsApp volta quando alguém marcar que voltou a aceitar contato.`
+    : !contato.whatsapp
+      ? "Sem WhatsApp para chamar. Cadastre um número para usar o botão."
+      : null;
 
   // Ações do período: só para cadastro ativo; as regras finais ficam nos formulários.
   const acoesPeriodo: { href: string; rotulo: string }[] = [];
@@ -340,6 +353,34 @@ export default async function FichaAluno({
             ))}
           </ul>
         )}
+        {quemRecebe && (
+          <p className="max-w-prose text-texto-suave">{quemRecebe}</p>
+        )}
+        {ativo && motivoSemWhatsapp && (
+          <p className="max-w-prose">
+            {motivoSemWhatsapp}
+            {!naoQuerContato && (
+              <>
+                {" "}
+                <Link href={`${base}/editar`} className={LINK}>
+                  Editar cadastro
+                </Link>
+              </>
+            )}
+          </p>
+        )}
+        <div className="flex flex-col gap-4 md:flex-row md:items-start">
+          {ativo && !motivoSemWhatsapp && (
+            <BotaoWhatsapp alunoIds={[aluno.id]} lista="ficha">
+              Chamar no WhatsApp
+            </BotaoWhatsapp>
+          )}
+          <FormularioNaoQuerContato
+            key={naoQuerContato ? "marcado" : "livre"}
+            alunoId={aluno.id}
+            marcado={naoQuerContato !== null}
+          />
+        </div>
       </section>
 
       {aluno.encerrado && (

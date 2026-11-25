@@ -1,0 +1,245 @@
+/**
+ * Contatos pelo WhatsApp: prepara o link `wa.me` com a mensagem pronta,
+ * registra o contato (uma linha por aluno, com o mesmo grupo), marca o
+ * resultado e a marca "não quer contato" da pessoa que recebe as mensagens.
+ */
+import { randomUUID } from "node:crypto";
+import { and, eq, isNull, sql } from "drizzle-orm";
+import { type Executor, MENSAGEM_ENCERRADO } from "../alunos/cadastro";
+import {
+  type AlunoCarregado,
+  carregarAlunos,
+  type PessoaDeContato,
+} from "../alunos/carga";
+import { type DataIso, formatarDia } from "../alunos/datas";
+import type { Banco } from "../banco/cliente";
+import { bloqueiosContato, contatos, pessoas } from "../banco/esquema";
+import { ehUuid } from "../cadastros/comum";
+import type { Resultado } from "../cadastros/resultado";
+import {
+  type Finalidade,
+  mensagemAtiva,
+} from "../configuracoes/mensagens-prontas";
+import {
+  juntarLista,
+  linkConversa,
+  preencherMensagem,
+  primeiroNome,
+} from "./mensagens";
+import { type ListaContato, RESULTADOS } from "./valores";
+
+export const MENSAGEM_ALUNO_NAO_ENCONTRADO = "Aluno não encontrado.";
+export const MENSAGEM_CONTATOS_DIFERENTES =
+  "Esses alunos não têm o mesmo contato.";
+export const MENSAGEM_BLOQUEADO = "Esta pessoa pediu para não ser contatada.";
+export const MENSAGEM_SEM_WHATSAPP = "Cadastre um WhatsApp antes de chamar.";
+const MENSAGEM_RESULTADO = "Escolha um resultado da lista.";
+const MENSAGEM_CONTATO_NAO_ENCONTRADO = "Contato não encontrado.";
+const MENSAGEM_PESSOA_NAO_ENCONTRADA = "Pessoa não encontrada.";
+
+function falha<T>(mensagem: string, campo = "_"): Resultado<T> {
+  return { ok: false, erros: { [campo]: mensagem } };
+}
+
+/** Vence em breve: renovação; vencido: retorno; ficha: pelo estado de hoje. */
+function finalidadeDa(
+  lista: ListaContato,
+  alunos: AlunoCarregado[],
+): Finalidade {
+  if (lista === "vence_em_breve") return "renovacao";
+  if (lista === "vencido") return "retorno";
+  const emCurso = alunos.every(
+    (a) => a.resumo.estado === "vigente" || a.resumo.estado === "trancado",
+  );
+  return emCurso ? "renovacao" : "retorno";
+}
+
+/** Valores distintos, na ordem em que aparecem. */
+function distintos(itens: string[]): string[] {
+  return [...new Set(itens)];
+}
+
+/**
+ * Monta o contato de um ou mais alunos que têm a mesma pessoa de contato:
+ * quem recebe, o texto da mensagem pronta ativa da finalidade (ou `null`, sem
+ * mensagem ativa) e o link `wa.me`. Não grava nada.
+ */
+export async function prepararContato(
+  db: Banco,
+  a: { alunoIds: string[]; lista: ListaContato },
+  hoje: DataIso,
+): Promise<
+  Resultado<{
+    pessoa: PessoaDeContato;
+    texto: string | null;
+    mensagemId: string | null;
+    url: string;
+  }>
+> {
+  const ids = distintos(a.alunoIds.map((id) => id.toLowerCase()));
+  if (ids.length === 0 || !ids.every(ehUuid)) {
+    return falha(MENSAGEM_ALUNO_NAO_ENCONTRADO);
+  }
+  const carregados = await carregarAlunos(db, hoje, { ids });
+  const porId = new Map(carregados.map((al) => [al.id, al]));
+  // Na ordem pedida (a da linha da lista), não na de nome.
+  const alunos = ids.flatMap((id) => porId.get(id) ?? []);
+  if (alunos.length !== ids.length) {
+    return falha(MENSAGEM_ALUNO_NAO_ENCONTRADO);
+  }
+  if (alunos.some((al) => al.encerrado)) return falha(MENSAGEM_ENCERRADO);
+
+  const pessoa = alunos[0].contato;
+  if (alunos.some((al) => al.contato.pessoaId !== pessoa.pessoaId)) {
+    return falha(MENSAGEM_CONTATOS_DIFERENTES);
+  }
+  if (pessoa.naoQuerContato) return falha(MENSAGEM_BLOQUEADO);
+  if (!pessoa.whatsapp) return falha(MENSAGEM_SEM_WHATSAPP);
+
+  const mensagem = await mensagemAtiva(db, finalidadeDa(a.lista, alunos));
+  const texto = mensagem
+    ? preencherMensagem(mensagem.texto, {
+        nome: primeiroNome(pessoa.nome),
+        aluno: juntarLista(alunos.map((al) => primeiroNome(al.nome))),
+        turma: juntarLista(
+          distintos(
+            alunos.flatMap((al) =>
+              al.matriculas.map((m) => `${m.ritmo} ${m.modulo}`),
+            ),
+          ),
+        ),
+        fim: juntarLista(
+          distintos(
+            alunos.flatMap((al) =>
+              al.resumo.ultimo
+                ? [formatarDia(al.resumo.ultimo.fimEfetivo)]
+                : [],
+            ),
+          ),
+        ),
+      })
+    : null;
+
+  return {
+    ok: true,
+    valor: {
+      pessoa,
+      texto,
+      mensagemId: mensagem?.id ?? null,
+      url: linkConversa(pessoa.whatsapp.replace(/\D/g, ""), texto ?? undefined),
+    },
+  };
+}
+
+/**
+ * Prepara o contato e grava uma linha por aluno, todas com o mesmo grupo,
+ * número, mensagem e texto (e o mesmo horário). Devolve o link para abrir.
+ */
+export async function registrarContato(
+  db: Banco,
+  a: { alunoIds: string[]; lista: ListaContato; feitoPor: string },
+  hoje: DataIso,
+): Promise<Resultado<{ url: string; grupoId: string }>> {
+  const preparo = await prepararContato(db, a, hoje);
+  if (!preparo.ok) return preparo;
+  const { pessoa, texto, mensagemId, url } = preparo.valor;
+  const grupoId = randomUUID();
+  const ids = distintos(a.alunoIds.map((id) => id.toLowerCase()));
+  // Um único INSERT: todas as linhas recebem o mesmo `now()` da transação.
+  await db.insert(contatos).values(
+    ids.map((alunoId) => ({
+      grupoId,
+      alunoId,
+      pessoaContatoId: pessoa.pessoaId,
+      whatsapp: pessoa.whatsapp ?? "",
+      lista: a.lista,
+      mensagemId,
+      texto,
+      criadoPor: a.feitoPor,
+    })),
+  );
+  return { ok: true, valor: { url, grupoId } };
+}
+
+/** Abre o bloqueio da pessoa, se ainda não houver um aberto. */
+async function abrirBloqueio(
+  db: Executor,
+  pessoaId: string,
+  feitoPor: string,
+): Promise<void> {
+  // O índice único parcial (um bloqueio aberto por pessoa) evita o segundo.
+  await db
+    .insert(bloqueiosContato)
+    .values({ pessoaId, marcadoPor: feitoPor })
+    .onConflictDoNothing();
+}
+
+/**
+ * Marca (ou troca) o resultado de todas as linhas do grupo. "Não quer
+ * contato" também marca a pessoa de contato.
+ */
+export async function marcarResultado(
+  db: Banco,
+  a: { grupoId: string; resultado: string; feitoPor: string },
+): Promise<Resultado<null>> {
+  const resultado = RESULTADOS.find((r) => r === a.resultado);
+  if (!resultado) return falha(MENSAGEM_RESULTADO, "resultado");
+  if (!ehUuid(a.grupoId)) return falha(MENSAGEM_CONTATO_NAO_ENCONTRADO);
+  return db.transaction(async (tx): Promise<Resultado<null>> => {
+    const linhas = await tx
+      .update(contatos)
+      .set({
+        resultado,
+        resultadoPor: a.feitoPor,
+        resultadoEm: sql`now()`,
+      })
+      .where(eq(contatos.grupoId, a.grupoId.toLowerCase()))
+      .returning({ pessoaContatoId: contatos.pessoaContatoId });
+    if (linhas.length === 0) return falha(MENSAGEM_CONTATO_NAO_ENCONTRADO);
+    if (resultado === "nao_quer_contato") {
+      await abrirBloqueio(tx, linhas[0].pessoaContatoId, a.feitoPor);
+    }
+    return { ok: true, valor: null };
+  });
+}
+
+async function pessoaExiste(db: Banco, pessoaId: string): Promise<boolean> {
+  if (!ehUuid(pessoaId)) return false;
+  const [linha] = await db
+    .select({ id: pessoas.id })
+    .from(pessoas)
+    .where(eq(pessoas.id, pessoaId));
+  return linha !== undefined;
+}
+
+/** Marca "não quer contato" na pessoa (nada muda se já estiver marcada). */
+export async function marcarNaoQuerContato(
+  db: Banco,
+  a: { pessoaId: string; feitoPor: string },
+): Promise<Resultado<null>> {
+  if (!(await pessoaExiste(db, a.pessoaId))) {
+    return falha(MENSAGEM_PESSOA_NAO_ENCONTRADA);
+  }
+  await abrirBloqueio(db, a.pessoaId.toLowerCase(), a.feitoPor);
+  return { ok: true, valor: null };
+}
+
+/** "Voltou a aceitar contato": fecha o bloqueio aberto, com quem e quando. */
+export async function desfazerNaoQuerContato(
+  db: Banco,
+  a: { pessoaId: string; feitoPor: string },
+): Promise<Resultado<null>> {
+  if (!(await pessoaExiste(db, a.pessoaId))) {
+    return falha(MENSAGEM_PESSOA_NAO_ENCONTRADA);
+  }
+  await db
+    .update(bloqueiosContato)
+    .set({ desfeitoEm: sql`now()`, desfeitoPor: a.feitoPor })
+    .where(
+      and(
+        eq(bloqueiosContato.pessoaId, a.pessoaId.toLowerCase()),
+        isNull(bloqueiosContato.desfeitoEm),
+      ),
+    );
+  return { ok: true, valor: null };
+}

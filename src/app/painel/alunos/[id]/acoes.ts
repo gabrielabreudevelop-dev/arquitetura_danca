@@ -33,6 +33,10 @@ import {
 import { exigirAdministracao } from "@/servidor/auth/acesso";
 import { obterBanco } from "@/servidor/banco/cliente";
 import { ehUuid } from "@/servidor/cadastros/comum";
+import {
+  desfazerNaoQuerContato,
+  marcarNaoQuerContato,
+} from "@/servidor/contatos/contatos";
 import type { EstadoFormulario } from "../../_formulario/estado";
 import { lerTexto } from "../../_formulario/ler-texto";
 import { lerAlvoAnular } from "./calculos";
@@ -385,5 +389,50 @@ export async function anularAcao(
       break;
   }
   if (!resultado.ok) return { erros: resultado.erros, valores };
+  redirect(`/painel/alunos/${alunoId}`);
+}
+
+/** A pessoa que recebe as mensagens do aluno do formulário, ou `null`. */
+async function pessoaDeContatoDo(alunoId: string): Promise<string | null> {
+  const [aluno] = await carregarAlunos(obterBanco(), hojeEmSaoPaulo(), {
+    ids: [alunoId],
+  });
+  return aluno?.contato.pessoaId ?? null;
+}
+
+/**
+ * "Não quer contato": marca a pessoa que recebe as mensagens do aluno (ele,
+ * ou o responsável), o que vale para todos os alunos dela.
+ */
+export async function naoQuerContatoAcao(
+  _estado: EstadoFormulario,
+  form: FormData,
+): Promise<EstadoFormulario> {
+  await exigirAdministracao();
+  const alunoId = alunoDoFormulario(form);
+  const pessoaId = alunoId ? await pessoaDeContatoDo(alunoId) : null;
+  if (!alunoId || !pessoaId) return erro(ALUNO_NAO_ENCONTRADO);
+  const resultado = await marcarNaoQuerContato(obterBanco(), {
+    pessoaId,
+    feitoPor: await feitoPor(),
+  });
+  if (!resultado.ok) return { erros: resultado.erros };
+  redirect(`/painel/alunos/${alunoId}`);
+}
+
+/** "Voltou a aceitar contato": desfaz a marca da pessoa de contato do aluno. */
+export async function desfazerNaoQuerContatoAcao(
+  _estado: EstadoFormulario,
+  form: FormData,
+): Promise<EstadoFormulario> {
+  await exigirAdministracao();
+  const alunoId = alunoDoFormulario(form);
+  const pessoaId = alunoId ? await pessoaDeContatoDo(alunoId) : null;
+  if (!alunoId || !pessoaId) return erro(ALUNO_NAO_ENCONTRADO);
+  const resultado = await desfazerNaoQuerContato(obterBanco(), {
+    pessoaId,
+    feitoPor: await feitoPor(),
+  });
+  if (!resultado.ok) return { erros: resultado.erros };
   redirect(`/painel/alunos/${alunoId}`);
 }
