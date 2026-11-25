@@ -1,7 +1,8 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   codigoDoErro,
   mensagemDoErro,
+  responderAbrir,
   validarPedidoAbrir,
 } from "./pedido-abrir";
 
@@ -174,5 +175,102 @@ describe("códigos de erro", () => {
     expect(mensagemDoErro("Aluno não encontrado.")).toBeNull();
     expect(mensagemDoErro(undefined)).toBeNull();
     expect(mensagemDoErro("constructor")).toBeNull();
+  });
+});
+
+describe("responderAbrir", () => {
+  const PEDIDO_OK = () =>
+    formulario([
+      ["aluno", A],
+      ["lista", "vencido"],
+    ]);
+
+  function dependencias(
+    registrar: Parameters<typeof responderAbrir>[2]["registrar"],
+    sessao: { pessoaId: string } | null = { pessoaId: B },
+  ) {
+    return { sessao: vi.fn(async () => sessao), registrar: vi.fn(registrar) };
+  }
+
+  it("origem errada: 403 sem olhar a sessão", async () => {
+    const d = dependencias(async () => ({ ok: true, valor: { url: "x" } }));
+    expect(
+      await responderAbrir(
+        cabecalhos({ host: "painel.exemplo.dev", origin: "https://evil.com" }),
+        PEDIDO_OK(),
+        d,
+      ),
+    ).toEqual({ status: 403 });
+    expect(d.sessao).not.toHaveBeenCalled();
+    expect(d.registrar).not.toHaveBeenCalled();
+  });
+
+  it("sem sessão da administração: 403 sem registrar", async () => {
+    const d = dependencias(
+      async () => ({ ok: true, valor: { url: "x" } }),
+      null,
+    );
+    expect(await responderAbrir(cabecalhos(MESMA), PEDIDO_OK(), d)).toEqual({
+      status: 403,
+    });
+    expect(d.registrar).not.toHaveBeenCalled();
+  });
+
+  it("formulário inválido: volta com o código, sem registrar", async () => {
+    const d = dependencias(async () => ({ ok: true, valor: { url: "x" } }));
+    expect(
+      await responderAbrir(
+        cabecalhos(MESMA),
+        formulario([["lista", "vencido"]]),
+        d,
+      ),
+    ).toEqual({ status: 303, location: "/painel/contatos?erro=aluno" });
+    expect(d.registrar).not.toHaveBeenCalled();
+  });
+
+  it("registrado: 303 para o link, com quem fez", async () => {
+    const d = dependencias(async () => ({
+      ok: true,
+      valor: { url: "https://wa.me/5527999990000" },
+    }));
+    expect(await responderAbrir(cabecalhos(MESMA), PEDIDO_OK(), d)).toEqual({
+      status: 303,
+      location: "https://wa.me/5527999990000",
+    });
+    expect(d.registrar).toHaveBeenCalledWith({
+      alunoIds: [A],
+      lista: "vencido",
+      feitoPor: B,
+    });
+  });
+
+  it("erro do serviço: volta com o código da mensagem", async () => {
+    const d = dependencias(async () => ({
+      ok: false,
+      erros: { _: "Esta pessoa pediu para não ser contatada." },
+    }));
+    expect(await responderAbrir(cabecalhos(MESMA), PEDIDO_OK(), d)).toEqual({
+      status: 303,
+      location: "/painel/contatos?erro=bloqueado",
+    });
+  });
+
+  it("falha inesperada: volta com erro genérico e não registra dados no log", async () => {
+    const espiao = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const d = dependencias(async () => {
+        throw new Error(
+          "Failed query: insert … params: 5527999990000,Oi, Ana! Sentimos falta",
+        );
+      });
+      expect(await responderAbrir(cabecalhos(MESMA), PEDIDO_OK(), d)).toEqual({
+        status: 303,
+        location: "/painel/contatos?erro=erro",
+      });
+      expect(espiao).toHaveBeenCalledTimes(1);
+      expect(espiao).toHaveBeenCalledWith("Falha ao registrar um contato.");
+    } finally {
+      espiao.mockRestore();
+    }
   });
 });

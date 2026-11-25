@@ -1,7 +1,13 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useActionState, useState } from "react";
+import {
+  useActionState,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { RESULTADOS } from "@/servidor/contatos/valores";
 import { ESTADO_INICIAL } from "../_formulario/estado";
 import { MensagemErroGeral } from "../_formulario/mensagem";
@@ -43,19 +49,36 @@ export function BotaoWhatsapp({
 }) {
   const roteador = useRouter();
   const [abrindo, setAbrindo] = useState(false);
+  const espera = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const aoVoltar = useRef<(() => void) | null>(null);
+
+  /** Cancela a espera e o ouvinte da volta à aba, se houver. */
+  const limpar = useCallback(() => {
+    if (espera.current) clearTimeout(espera.current);
+    espera.current = null;
+    if (aoVoltar.current) {
+      document.removeEventListener("visibilitychange", aoVoltar.current);
+    }
+    aoVoltar.current = null;
+  }, []);
+  useEffect(() => limpar, [limpar]);
 
   function aoEnviar() {
+    limpar();
     setAbrindo(true);
-    setTimeout(() => {
+    espera.current = setTimeout(() => {
+      espera.current = null;
       setAbrindo(false);
       roteador.refresh();
     }, ESPERA_MS);
-    const aoVoltar = () => {
+    const ouvinte = () => {
       if (document.visibilityState !== "visible") return;
-      document.removeEventListener("visibilitychange", aoVoltar);
+      document.removeEventListener("visibilitychange", ouvinte);
+      aoVoltar.current = null;
       roteador.refresh();
     };
-    document.addEventListener("visibilitychange", aoVoltar);
+    aoVoltar.current = ouvinte;
+    document.addEventListener("visibilitychange", ouvinte);
   }
 
   return (
@@ -84,22 +107,25 @@ export function BotaoWhatsapp({
 
 /** Resultado do último contato da linha, com o atual já escolhido. */
 export function FormularioResultado({
-  grupoId,
+  grupoIds,
   atual,
   nome,
 }: {
-  grupoId: string;
+  /** Grupo do último contato de cada aluno da linha. */
+  grupoIds: string[];
   atual: string | null;
   /** Quem recebeu, para o rótulo do campo ("Resultado do contato com Ana Souza"). */
   nome: string;
 }) {
   const [estado, acao] = useActionState(marcarResultadoAcao, ESTADO_INICIAL);
   const versao = useVersao(estado);
-  const id = `resultado-${grupoId}`;
+  const id = `resultado-${grupoIds[0]}`;
   const erro = estado.erros?.resultado;
   return (
     <form key={versao} action={acao} className="flex flex-col gap-2">
-      <input type="hidden" name="grupo" value={grupoId} />
+      {grupoIds.map((g) => (
+        <input key={g} type="hidden" name="grupo" value={g} />
+      ))}
       <label htmlFor={id} className="font-semibold">
         Resultado<span className="sr-only"> do contato com {nome}</span>
       </label>

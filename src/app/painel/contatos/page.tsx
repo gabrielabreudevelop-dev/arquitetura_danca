@@ -12,6 +12,7 @@ import {
 import { exigirAdministracao } from "@/servidor/auth/acesso";
 import { obterBanco } from "@/servidor/banco/cliente";
 import { mensagemAtiva } from "@/servidor/configuracoes/mensagens-prontas";
+import { ultimosGruposDosAlunos } from "@/servidor/contatos/contatos";
 import { primeiroNome } from "@/servidor/contatos/mensagens";
 import { mensagemDoErro } from "@/servidor/contatos/pedido-abrir";
 import { textoDoEstado } from "../alunos/textos";
@@ -94,7 +95,7 @@ function QuemRecebe({ linha }: { linha: LinhaContato }) {
           {i === alunos.length - 1 ? " e " : ", "}
         </span>
       )}
-      <Link href={`/painel/alunos/${a.id}`} className={LINK}>
+      <Link href={`/painel/alunos/${a.id}`} className={LINK_TOQUE}>
         {alunos.length > 1 || pessoa.ehResponsavel
           ? primeiroNome(a.nome)
           : a.nome}
@@ -117,10 +118,13 @@ function Linha({
   linha,
   lista,
   hoje,
+  grupos,
 }: {
   linha: LinhaContato;
   lista: FiltrosContatos["lista"];
   hoje: string;
+  /** Grupo do último contato de cada aluno da linha (o resultado vale para todos). */
+  grupos: string[];
 }) {
   const { pessoa, alunos, ultimoContato } = linha;
   const varios = alunos.length > 1;
@@ -160,16 +164,16 @@ function Linha({
               Sem WhatsApp.{" "}
               <Link
                 href={`/painel/alunos/${alunos[0].id}/editar`}
-                className={LINK}
+                className={LINK_TOQUE}
               >
                 Cadastrar número
               </Link>
             </p>
           )}
-          {ultimoContato && (
+          {ultimoContato && grupos.length > 0 && (
             <FormularioResultado
-              key={`${ultimoContato.grupoId}-${ultimoContato.resultado}`}
-              grupoId={ultimoContato.grupoId}
+              key={`${grupos.join()}-${ultimoContato.resultado}`}
+              grupoIds={grupos}
               atual={ultimoContato.resultado}
               nome={pessoa.nome}
             />
@@ -224,6 +228,13 @@ export default async function Contatos({
   );
   const vencidos = linhasDeContato(alunos, filtrosDe("vencido"), hoje, agora);
   const linhas = filtros.lista === "vence_em_breve" ? vencem : vencidos;
+  const ultimosGrupos = await ultimosGruposDosAlunos(
+    db,
+    linhas.flatMap((l) => l.alunos.map((a) => a.id)),
+  );
+  const gruposDa = (l: LinhaContato) => [
+    ...new Set(l.alunos.flatMap((a) => ultimosGrupos.get(a.id) ?? [])),
+  ];
 
   const abas = [
     {
@@ -327,7 +338,7 @@ export default async function Contatos({
       {!mensagem && (
         <p className="bg-rosa-suave px-4 py-3">
           {textoSemMensagem(filtros.lista)}{" "}
-          <Link href="/painel/configuracoes" className={LINK}>
+          <Link href="/painel/configuracoes" className={LINK_TOQUE}>
             Ir para configurações
           </Link>
         </p>
@@ -366,6 +377,7 @@ export default async function Contatos({
                 linha={l}
                 lista={filtros.lista}
                 hoje={hoje}
+                grupos={gruposDa(l)}
               />
             ))}
           </tbody>

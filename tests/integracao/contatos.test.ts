@@ -1,4 +1,5 @@
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, inArray, isNull } from "drizzle-orm";
+import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   cadastrarAluno,
@@ -18,6 +19,7 @@ import {
   marcarResultado,
   prepararContato,
   registrarContato,
+  ultimosGruposDosAlunos,
 } from "@/servidor/contatos/contatos";
 import { criarBancoDeTeste } from "../apoio/banco";
 import {
@@ -370,10 +372,16 @@ describe("prepararContato", () => {
     const whatsapp = numero();
     const id = await cadastrar({ nome: "Sem Mensagem", whatsapp });
     await periodo(id, "2026-10-01", "2026-10-31");
-    await banco.db
+    const desativadas = await banco.db
       .update(mensagensProntas)
       .set({ ativa: false })
-      .where(eq(mensagensProntas.finalidade, "retorno"));
+      .where(
+        and(
+          eq(mensagensProntas.finalidade, "retorno"),
+          eq(mensagensProntas.ativa, true),
+        ),
+      )
+      .returning({ id: mensagensProntas.id });
     try {
       const valor = ok(
         await prepararContato(
@@ -388,10 +396,17 @@ describe("prepararContato", () => {
         mensagemId: null,
       });
     } finally {
-      await banco.db
-        .update(mensagensProntas)
-        .set({ ativa: true })
-        .where(eq(mensagensProntas.nome, "Convite para voltar"));
+      if (desativadas.length > 0) {
+        await banco.db
+          .update(mensagensProntas)
+          .set({ ativa: true })
+          .where(
+            inArray(
+              mensagensProntas.id,
+              desativadas.map((m) => m.id),
+            ),
+          );
+      }
     }
   });
 });
@@ -464,7 +479,7 @@ describe("registrarContato e resultado", () => {
     const outra = await criarAdministracao(banco.db);
     ok(
       await marcarResultado(banco.db, {
-        grupoId,
+        grupoIds: [grupoId],
         resultado: "nao_quer_contato",
         feitoPor: outra.id,
       }),
@@ -492,7 +507,7 @@ describe("registrarContato e resultado", () => {
     // De novo (pelo resultado ou pela ficha): nenhum bloqueio a mais.
     ok(
       await marcarResultado(banco.db, {
-        grupoId,
+        grupoIds: [grupoId],
         resultado: "nao_quer_contato",
         feitoPor: adm.id,
       }),
@@ -547,14 +562,14 @@ describe("registrarContato e resultado", () => {
     );
     ok(
       await marcarResultado(banco.db, {
-        grupoId,
+        grupoIds: [grupoId],
         resultado: "vai_pensar",
         feitoPor: adm.id,
       }),
     );
     ok(
       await marcarResultado(banco.db, {
-        grupoId,
+        grupoIds: [grupoId],
         resultado: "vai_renovar",
         feitoPor: adm.id,
       }),
@@ -583,17 +598,22 @@ describe("registrarContato e resultado", () => {
     expect(
       erros(
         await marcarResultado(banco.db, {
-          grupoId,
+          grupoIds: [grupoId],
           resultado: "talvez",
           feitoPor: adm.id,
         }),
       ),
     ).toEqual({ resultado: "Escolha um resultado da lista." });
-    for (const outro of ["xyz", "00000000-0000-4000-8000-000000000000"]) {
+    for (const outros of [
+      [],
+      ["xyz"],
+      ["00000000-0000-4000-8000-000000000000"],
+      [grupoId, "00000000-0000-4000-8000-000000000000"],
+    ]) {
       expect(
         erros(
           await marcarResultado(banco.db, {
-            grupoId: outro,
+            grupoIds: outros,
             resultado: "vai_pensar",
             feitoPor: adm.id,
           }),
@@ -618,5 +638,101 @@ describe("registrarContato e resultado", () => {
         }),
       ),
     ).toEqual({ _: "Pessoa não encontrada." });
+  });
+
+  it("o resultado da linha vale para o último contato de cada aluno", async () => {
+    const { bruno, lia } = await irmaos();
+    const juntos = ok(
+      await registrarContato(
+        banco.db,
+        { alunoIds: [bruno, lia], lista: "vencido", feitoPor: adm.id },
+        HOJE,
+      ),
+    ).grupoId;
+    // Depois, só o Bruno, pela ficha.
+    const soBruno = ok(
+      await registrarContato(
+        banco.db,
+        { alunoIds: [bruno], lista: "ficha", feitoPor: adm.id },
+        HOJE,
+      ),
+    ).grupoId;
+
+    const ultimos = await ultimosGruposDosAlunos(banco.db, [bruno, lia]);
+    expect(ultimos.get(bruno)).toBe(soBruno);
+    expect(ultimos.get(lia)).toBe(juntos);
+
+    // A linha "Bruno e Lia" manda os dois grupos.
+    ok(
+      await marcarResultado(banco.db, {
+        grupoIds: [...new Set(ultimos.values())],
+        resultado: "vai_pensar",
+        feitoPor: adm.id,
+      }),
+    );
+    const linhas = await banco.db
+      .select()
+      .from(contatos)
+      .where(inArray(contatos.grupoId, [juntos, soBruno]));
+    expect(linhas).toHaveLength(3);
+    for (const l of linhas) expect(l.resultado).toBe("vai_pensar");
+  });
+
+  it("grupo inexistente na lista não muda nenhum contato", async () => {
+    const id = await cadastrar({ nome: "Nada Muda", whatsapp: numero() });
+    const { grupoId } = ok(
+      await registrarContato(
+        banco.db,
+        { alunoIds: [id], lista: "ficha", feitoPor: adm.id },
+        HOJE,
+      ),
+    );
+    erros(
+      await marcarResultado(banco.db, {
+        grupoIds: [grupoId, "00000000-0000-4000-8000-000000000000"],
+        resultado: "vai_pensar",
+        feitoPor: adm.id,
+      }),
+    );
+    const [linha] = await banco.db
+      .select()
+      .from(contatos)
+      .where(eq(contatos.grupoId, grupoId));
+    expect(linha.resultado).toBeNull();
+  });
+
+  it("não quer contato marcado ao mesmo tempo barra o registro", async () => {
+    const id = await cadastrar({ nome: "Corrida Silva", whatsapp: numero() });
+    const pool = new Pool({ connectionString: banco.url });
+    const outra = await pool.connect();
+    try {
+      // Outra sessão trava a pessoa e abre o bloqueio, ainda sem confirmar.
+      await outra.query("begin");
+      await outra.query("select id from pessoas where id = $1 for update", [
+        id,
+      ]);
+      await outra.query(
+        "insert into bloqueios_contato (pessoa_id, marcado_por) values ($1, $2)",
+        [id, adm.id],
+      );
+      const registro = registrarContato(
+        banco.db,
+        { alunoIds: [id], lista: "ficha", feitoPor: adm.id },
+        HOJE,
+      );
+      await new Promise((r) => setTimeout(r, 300));
+      await outra.query("commit");
+      expect(erros(await registro)).toEqual({
+        _: "Esta pessoa pediu para não ser contatada.",
+      });
+      const linhas = await banco.db
+        .select()
+        .from(contatos)
+        .where(eq(contatos.alunoId, id));
+      expect(linhas).toHaveLength(0);
+    } finally {
+      outra.release();
+      await pool.end();
+    }
   });
 });

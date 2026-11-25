@@ -8,8 +8,8 @@ import type { EstadoFormulario } from "../_formulario/estado";
 import { lerTexto } from "../_formulario/ler-texto";
 
 /**
- * Resultado do último contato de uma linha (campos `grupo` e `resultado`).
- * Vale para todos os alunos do grupo; "não quer contato" tira a linha da lista.
+ * Resultado de uma linha (campos `grupo`, repetido, e `resultado`): vale para
+ * o último contato de cada aluno da linha; "não quer contato" a tira da lista.
  */
 export async function marcarResultadoAcao(
   _estado: EstadoFormulario,
@@ -17,9 +17,11 @@ export async function marcarResultadoAcao(
 ): Promise<EstadoFormulario> {
   await exigirAdministracao();
   const valores = { resultado: lerTexto(form, "resultado") };
+  // A primeira instrução precisa ser a checagem sozinha (teste estático das
+  // actions); esta segunda chamada só busca quem está fazendo.
   const { pessoaId } = await exigirAdministracao();
   const resultado = await marcarResultado(obterBanco(), {
-    grupoId: lerTexto(form, "grupo"),
+    grupoIds: form.getAll("grupo").map(String),
     resultado: valores.resultado,
     feitoPor: pessoaId,
   });

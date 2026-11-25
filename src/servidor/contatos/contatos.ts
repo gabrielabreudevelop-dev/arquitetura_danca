@@ -4,7 +4,7 @@
  * resultado e a marca "não quer contato" da pessoa que recebe as mensagens.
  */
 import { randomUUID } from "node:crypto";
-import { and, eq, isNull, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { type Executor, MENSAGEM_ENCERRADO } from "../alunos/cadastro";
 import {
   type AlunoCarregado,
@@ -145,20 +145,85 @@ export async function registrarContato(
   const { pessoa, texto, mensagemId, url } = preparo.valor;
   const grupoId = randomUUID();
   const ids = distintos(a.alunoIds.map((id) => id.toLowerCase()));
-  // Um único INSERT: todas as linhas recebem o mesmo `now()` da transação.
-  await db.insert(contatos).values(
-    ids.map((alunoId) => ({
-      grupoId,
-      alunoId,
-      pessoaContatoId: pessoa.pessoaId,
-      whatsapp: pessoa.whatsapp ?? "",
-      lista: a.lista,
-      mensagemId,
-      texto,
-      criadoPor: a.feitoPor,
-    })),
+  return db.transaction(
+    async (tx): Promise<Resultado<{ url: string; grupoId: string }>> => {
+      // Com a pessoa travada, uma marca "não quer contato" feita ao mesmo
+      // tempo ou já entrou (e é vista aqui) ou espera este registro terminar.
+      await travarPessoas(tx, [pessoa.pessoaId]);
+      if (await temBloqueioAberto(tx, pessoa.pessoaId)) {
+        return falha(MENSAGEM_BLOQUEADO);
+      }
+      // Um único INSERT: todas as linhas recebem o mesmo `now()` da transação.
+      await tx.insert(contatos).values(
+        ids.map((alunoId) => ({
+          grupoId,
+          alunoId,
+          pessoaContatoId: pessoa.pessoaId,
+          whatsapp: pessoa.whatsapp ?? "",
+          lista: a.lista,
+          mensagemId,
+          texto,
+          criadoPor: a.feitoPor,
+        })),
+      );
+      return { ok: true, valor: { url, grupoId } };
+    },
   );
-  return { ok: true, valor: { url, grupoId } };
+}
+
+/**
+ * Trava as linhas de `pessoas` (em ordem de id) e devolve as que existem.
+ * Registrar contato e marcar "não quer contato" travam a pessoa de contato.
+ */
+async function travarPessoas(tx: Executor, ids: string[]): Promise<string[]> {
+  const existentes: string[] = [];
+  for (const id of distintos(ids).sort()) {
+    const [linha] = await tx
+      .select({ id: pessoas.id })
+      .from(pessoas)
+      .where(eq(pessoas.id, id))
+      .for("update");
+    if (linha) existentes.push(linha.id);
+  }
+  return existentes;
+}
+
+async function temBloqueioAberto(
+  tx: Executor,
+  pessoaId: string,
+): Promise<boolean> {
+  const [linha] = await tx
+    .select({ id: bloqueiosContato.id })
+    .from(bloqueiosContato)
+    .where(
+      and(
+        eq(bloqueiosContato.pessoaId, pessoaId),
+        isNull(bloqueiosContato.desfeitoEm),
+      ),
+    );
+  return linha !== undefined;
+}
+
+/**
+ * Grupo do contato mais recente de cada aluno. Uma linha da lista pode juntar
+ * irmãos cujos últimos contatos são de grupos diferentes (um deles chamado
+ * sozinho pela ficha): o resultado da linha vale para todos esses grupos.
+ */
+export async function ultimosGruposDosAlunos(
+  db: Executor,
+  alunoIds: string[],
+): Promise<Map<string, string>> {
+  const ids = distintos(alunoIds.map((id) => id.toLowerCase())).filter(ehUuid);
+  if (ids.length === 0) return new Map();
+  const linhas = await db
+    .selectDistinctOn([contatos.alunoId], {
+      alunoId: contatos.alunoId,
+      grupoId: contatos.grupoId,
+    })
+    .from(contatos)
+    .where(inArray(contatos.alunoId, ids))
+    .orderBy(asc(contatos.alunoId), desc(contatos.criadoEm), desc(contatos.id));
+  return new Map(linhas.map((l) => [l.alunoId, l.grupoId]));
 }
 
 /** Abre o bloqueio da pessoa, se ainda não houver um aberto. */
@@ -175,29 +240,49 @@ async function abrirBloqueio(
 }
 
 /**
- * Marca (ou troca) o resultado de todas as linhas do grupo. "Não quer
- * contato" também marca a pessoa de contato.
+ * Marca (ou troca) o resultado de todas as linhas dos grupos (os últimos
+ * contatos dos alunos de uma linha da lista). "Não quer contato" também marca
+ * a pessoa de contato. Grupo inexistente: nada muda.
  */
 export async function marcarResultado(
   db: Banco,
-  a: { grupoId: string; resultado: string; feitoPor: string },
+  a: { grupoIds: string[]; resultado: string; feitoPor: string },
 ): Promise<Resultado<null>> {
   const resultado = RESULTADOS.find((r) => r === a.resultado);
   if (!resultado) return falha(MENSAGEM_RESULTADO, "resultado");
-  if (!ehUuid(a.grupoId)) return falha(MENSAGEM_CONTATO_NAO_ENCONTRADO);
+  const grupos = distintos(a.grupoIds.map((g) => g.toLowerCase()));
+  if (grupos.length === 0 || !grupos.every(ehUuid)) {
+    return falha(MENSAGEM_CONTATO_NAO_ENCONTRADO);
+  }
   return db.transaction(async (tx): Promise<Resultado<null>> => {
-    const linhas = await tx
+    const existentes = await tx
+      .select({
+        grupoId: contatos.grupoId,
+        pessoaContatoId: contatos.pessoaContatoId,
+      })
+      .from(contatos)
+      .where(inArray(contatos.grupoId, grupos));
+    if (new Set(existentes.map((e) => e.grupoId)).size !== grupos.length) {
+      return falha(MENSAGEM_CONTATO_NAO_ENCONTRADO);
+    }
+    const pessoasDeContato = distintos(
+      existentes.map((e) => e.pessoaContatoId),
+    );
+    if (resultado === "nao_quer_contato") {
+      await travarPessoas(tx, pessoasDeContato);
+    }
+    await tx
       .update(contatos)
       .set({
         resultado,
         resultadoPor: a.feitoPor,
         resultadoEm: sql`now()`,
       })
-      .where(eq(contatos.grupoId, a.grupoId.toLowerCase()))
-      .returning({ pessoaContatoId: contatos.pessoaContatoId });
-    if (linhas.length === 0) return falha(MENSAGEM_CONTATO_NAO_ENCONTRADO);
+      .where(inArray(contatos.grupoId, grupos));
     if (resultado === "nao_quer_contato") {
-      await abrirBloqueio(tx, linhas[0].pessoaContatoId, a.feitoPor);
+      for (const pessoaId of pessoasDeContato) {
+        await abrirBloqueio(tx, pessoaId, a.feitoPor);
+      }
     }
     return { ok: true, valor: null };
   });
@@ -217,11 +302,14 @@ export async function marcarNaoQuerContato(
   db: Banco,
   a: { pessoaId: string; feitoPor: string },
 ): Promise<Resultado<null>> {
-  if (!(await pessoaExiste(db, a.pessoaId))) {
-    return falha(MENSAGEM_PESSOA_NAO_ENCONTRADA);
-  }
-  await abrirBloqueio(db, a.pessoaId.toLowerCase(), a.feitoPor);
-  return { ok: true, valor: null };
+  if (!ehUuid(a.pessoaId)) return falha(MENSAGEM_PESSOA_NAO_ENCONTRADA);
+  const pessoaId = a.pessoaId.toLowerCase();
+  return db.transaction(async (tx): Promise<Resultado<null>> => {
+    const [existe] = await travarPessoas(tx, [pessoaId]);
+    if (!existe) return falha(MENSAGEM_PESSOA_NAO_ENCONTRADA);
+    await abrirBloqueio(tx, pessoaId, a.feitoPor);
+    return { ok: true, valor: null };
+  });
 }
 
 /** "Voltou a aceitar contato": fecha o bloqueio aberto, com quem e quando. */

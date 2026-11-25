@@ -6,6 +6,7 @@
  */
 import { MENSAGEM_ENCERRADO } from "../alunos/cadastro";
 import { ehUuid } from "../cadastros/comum";
+import type { Resultado } from "../cadastros/resultado";
 import {
   MENSAGEM_ALUNO_NAO_ENCONTRADO,
   MENSAGEM_BLOQUEADO,
@@ -83,4 +84,50 @@ export function validarPedidoAbrir(
     alunoIds: [...new Set(alunoIds.map((id) => id.toLowerCase()))],
     lista,
   };
+}
+
+export type RespostaAbrir = { status: 403 } | { status: 303; location: string };
+
+function voltarComErro(codigo: CodigoErroAbrir): RespostaAbrir {
+  return { status: 303, location: `/painel/contatos?erro=${codigo}` };
+}
+
+/**
+ * Todo o `POST /painel/contatos/abrir`, com sessão e registro injetados:
+ * origem (403), sessão da administração (403), campos (volta com o código),
+ * registro (303 para o `wa.me` ou volta com o código do erro). Uma falha
+ * inesperada vira o erro genérico: o erro do banco traz os parâmetros da
+ * consulta (número, texto com nomes), então o log recebe só um texto fixo.
+ */
+export async function responderAbrir(
+  cabecalhos: Headers,
+  form: FormData,
+  dependencias: {
+    sessao: () => Promise<{ pessoaId: string } | null>;
+    registrar: (a: {
+      alunoIds: string[];
+      lista: ListaContato;
+      feitoPor: string;
+    }) => Promise<Resultado<{ url: string }>>;
+  },
+): Promise<RespostaAbrir> {
+  const pedido = validarPedidoAbrir(cabecalhos, form);
+  if (pedido.tipo === "proibido") return { status: 403 };
+  const sessao = await dependencias.sessao();
+  if (!sessao) return { status: 403 };
+  if (pedido.tipo === "erro") return voltarComErro(pedido.codigo);
+  try {
+    const resultado = await dependencias.registrar({
+      alunoIds: pedido.alunoIds,
+      lista: pedido.lista,
+      feitoPor: sessao.pessoaId,
+    });
+    if (!resultado.ok) {
+      return voltarComErro(codigoDoErro(resultado.erros._ ?? ""));
+    }
+    return { status: 303, location: resultado.valor.url };
+  } catch {
+    console.error("Falha ao registrar um contato.");
+    return voltarComErro("erro");
+  }
 }
