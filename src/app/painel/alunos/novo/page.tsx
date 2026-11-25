@@ -6,6 +6,7 @@ import { exigirAdministracao } from "@/servidor/auth/acesso";
 import { obterBanco } from "@/servidor/banco/cliente";
 import { listarTurmas } from "@/servidor/cadastros/turmas";
 import { MensagemErroGeral } from "../../_formulario/mensagem";
+import { lerDepois } from "../dados";
 import { FormularioAluno } from "../formulario";
 
 export const dynamic = "force-dynamic";
@@ -20,10 +21,14 @@ const ERROS_TORNAR: Record<string, string> = {
 export default async function NovoAluno({
   searchParams,
 }: {
-  searchParams: Promise<{ erro?: string | string[] }>;
+  searchParams: Promise<{
+    erro?: string | string[];
+    depois?: string | string[];
+  }>;
 }) {
   await exigirAdministracao();
-  const { erro } = await searchParams;
+  const { erro, depois: depoisBruto } = await searchParams;
+  const depois = lerDepois(depoisBruto) ?? undefined;
   const mensagem =
     typeof erro === "string" && Object.hasOwn(ERROS_TORNAR, erro)
       ? ERROS_TORNAR[erro]
@@ -38,15 +43,19 @@ export default async function NovoAluno({
     >
       <div className="flex flex-col gap-2">
         <Link
-          href="/painel/alunos"
+          href={depois ?? "/painel/alunos"}
           className="-mx-2 flex min-h-12 items-center self-start px-2 text-link underline decoration-link underline-offset-4"
         >
-          Voltar para alunos
+          {depois ? "Voltar" : "Voltar para alunos"}
         </Link>
         <h1 className="text-titulo">Novo aluno</h1>
       </div>
       <MensagemErroGeral erro={mensagem} />
-      <FormularioAluno turmas={turmas} hoje={hojeEmSaoPaulo()} />
+      <FormularioAluno
+        turmas={turmas}
+        hoje={hojeEmSaoPaulo()}
+        depois={depois}
+      />
     </main>
   );
 }

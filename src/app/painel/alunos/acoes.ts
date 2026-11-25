@@ -13,12 +13,21 @@ import { exigirAdministracao } from "@/servidor/auth/acesso";
 import { obterBanco } from "@/servidor/banco/cliente";
 import { ehUuid } from "@/servidor/cadastros/comum";
 import { lerTexto } from "../_formulario/ler-texto";
-import { faltaResponsavelEscolhido, lerDadosAluno } from "./dados";
+import {
+  enderecoDepoisDoCadastro,
+  faltaResponsavelEscolhido,
+  lerDadosAluno,
+  lerDepois,
+} from "./dados";
 import type { EstadoAluno } from "./estado";
 
 const NAO_ENCONTRADO = { _: "Aluno não encontrado." };
 
-/** Cadastra o aluno; com uma pergunta pendente, devolve-a sem gravar nada. Sucesso → ficha. */
+/**
+ * Cadastra o aluno; com uma pergunta pendente, devolve-a sem gravar nada.
+ * Sucesso → ficha, ou `<depois>?para=<id>` quando o formulário traz um
+ * `depois` válido (ex.: voltar à transferência com o novo aluno escolhido).
+ */
 export async function cadastrarAlunoAcao(
   _estado: EstadoAluno,
   form: FormData,
@@ -50,22 +59,23 @@ export async function cadastrarAlunoAcao(
         whatsappRepetido: { pessoaId: v.pessoaId, nome: v.nome },
       };
   }
-  redirect(`/painel/alunos/${v.alunoId}`);
+  redirect(enderecoDepoisDoCadastro(lerTexto(form, "depois"), v.alunoId));
 }
 
-/** Dá o papel de aluno a quem já está cadastrado (e-mail repetido) e abre a ficha. */
+/** Dá o papel de aluno a quem já está cadastrado (e-mail repetido) e abre a ficha (ou volta para `depois`). */
 export async function tornarAlunoAcao(form: FormData): Promise<void> {
   await exigirAdministracao();
   const id = lerTexto(form, "pessoaId");
-  if (!ehUuid(id)) redirect("/painel/alunos/novo?erro=nao-encontrada");
+  const depois = lerDepois(lerTexto(form, "depois"));
+  const deVolta = (erro: string) =>
+    `/painel/alunos/novo?erro=${erro}${depois ? `&depois=${encodeURIComponent(depois)}` : ""}`;
+  if (!ehUuid(id)) redirect(deVolta("nao-encontrada"));
   const resultado = await tornarAluno(obterBanco(), id);
   if (!resultado.ok) {
     const encerrado = resultado.erros._ === MENSAGEM_ENCERRADO;
-    redirect(
-      `/painel/alunos/novo?erro=${encerrado ? "encerrado" : "nao-encontrada"}`,
-    );
+    redirect(deVolta(encerrado ? "encerrado" : "nao-encontrada"));
   }
-  redirect(`/painel/alunos/${id}`);
+  redirect(enderecoDepoisDoCadastro(depois ?? "", id));
 }
 
 /** Atualiza os dados do aluno. Sucesso → ficha. */

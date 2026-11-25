@@ -85,3 +85,26 @@ export function faltaResponsavelEscolhido(
     "responsavel.whatsapp": "Informe o WhatsApp do responsável.",
   };
 }
+
+/** Letras, números, hífen e barra simples depois de `/painel/alunos/`. */
+const CAMINHO_DEPOIS = /^\/painel\/alunos\/[A-Za-z0-9-]+(\/[A-Za-z0-9-]+)*$/;
+
+/**
+ * Para onde voltar depois de cadastrar (`?depois=` do formulário de novo
+ * aluno). Só caminhos dentro de `/painel/alunos/`, sem `//`, `..`, esquema,
+ * consulta nem âncora; qualquer outra coisa vira `null`.
+ */
+export function lerDepois(valor: unknown): string | null {
+  return typeof valor === "string" && CAMINHO_DEPOIS.test(valor) ? valor : null;
+}
+
+/** `depois` válido → `<depois>?para=<id>`; senão, a ficha do novo aluno. */
+export function enderecoDepoisDoCadastro(
+  depois: string,
+  alunoId: string,
+): string {
+  const caminho = lerDepois(depois);
+  return caminho
+    ? `${caminho}?para=${encodeURIComponent(alunoId)}`
+    : `/painel/alunos/${alunoId}`;
+}

@@ -36,6 +36,7 @@ const MENSAGEM_QUANTIDADE = "Informe um número inteiro maior que zero.";
 const MENSAGEM_TURMA_AULAS = "Escolha a turma das aulas.";
 const MENSAGEM_SEM_TURMA = "Sem turma, informe em dias.";
 const MENSAGEM_JA_ANULADO = "Isso já foi anulado.";
+const MENSAGEM_PERIODO_NAO_ENCONTRADO = "Período não encontrado.";
 
 type Falha = { ok: false; erros: Record<string, string> };
 
@@ -141,17 +142,14 @@ export async function sugestaoDePeriodo(
   };
 }
 
-/** Registra um período de plano. Precisa começar depois do fim efetivo do último. */
-export async function registrarPeriodo(
-  db: Banco,
-  a: {
-    alunoId: string;
-    planoId: string;
-    inicio: string;
-    fim: string;
-    feitoPor: string;
-  },
-): Promise<Resultado<{ periodoId: string }>> {
+type CamposPeriodo = { planoId: string; inicio: DataIso; fim: DataIso };
+
+/** Confere plano, início e fim vindos do formulário (sem ir ao banco). */
+function validarCamposPeriodo(a: {
+  planoId: string;
+  inicio: string;
+  fim: string;
+}): { ok: true; valor: CamposPeriodo } | Falha {
   const inicio = a.inicio?.trim() ?? "";
   const fim = a.fim?.trim() ?? "";
   const planoId = a.planoId?.trim() ?? "";
@@ -163,44 +161,69 @@ export async function registrarPeriodo(
     erros.fim = "O fim precisa ser depois do início.";
   }
   if (Object.keys(erros).length > 0) return { ok: false, erros };
+  return { ok: true, valor: { planoId, inicio, fim } };
+}
 
+/** Corpo de `registrarPeriodo`, dentro de uma transação já aberta. */
+async function registrarPeriodoEm(
+  tx: Executor,
+  alunoId: string,
+  { planoId, inicio, fim }: CamposPeriodo,
+  feitoPor: string,
+): Promise<Resultado<{ periodoId: string }>> {
+  if (!ehUuid(alunoId)) return falha("_", MENSAGEM_NAO_ENCONTRADO);
+  await travarAluno(tx, alunoId);
+  const ativo = await alunoAtivoOuErro(tx, alunoId);
+  if (!ativo.ok) return ativo;
+  const [plano] = await tx
+    .select({ id: planos.id })
+    .from(planos)
+    .where(and(eq(planos.id, planoId), eq(planos.ativo, true)));
+  if (!plano) return falha("planoId", MENSAGEM_PLANO);
+  // Lido depois da trava: outra gravação simultânea já terminou.
+  const { periodos } = await carregarPeriodosDoAluno(tx, alunoId);
+  const ultimo = ultimoPeriodo(periodos);
+  if (ultimo) {
+    const fimAtual = fimEfetivo(ultimo);
+    if (inicio <= fimAtual) {
+      return falha(
+        "inicio",
+        `O período atual vai até ${formatarDia(fimAtual)}. O novo precisa começar a partir de ${formatarDia(somarDias(fimAtual, 1))}.`,
+      );
+    }
+  }
+  const [novo] = await tx
+    .insert(periodosContratados)
+    .values({
+      alunoId,
+      inicio,
+      fim,
+      planoId,
+      origem: "plano",
+      criadoPor: feitoPor,
+    })
+    .returning({ id: periodosContratados.id });
+  return { ok: true as const, valor: { periodoId: novo.id } };
+}
+
+/** Registra um período de plano. Precisa começar depois do fim efetivo do último. */
+export async function registrarPeriodo(
+  db: Banco,
+  a: {
+    alunoId: string;
+    planoId: string;
+    inicio: string;
+    fim: string;
+    feitoPor: string;
+  },
+): Promise<Resultado<{ periodoId: string }>> {
+  const campos = validarCamposPeriodo(a);
+  if (!campos.ok) return campos;
   return executarTraduzindo<{ periodoId: string }>(
     () =>
-      db.transaction(async (tx) => {
-        if (!ehUuid(a.alunoId)) return falha("_", MENSAGEM_NAO_ENCONTRADO);
-        await travarAluno(tx, a.alunoId);
-        const ativo = await alunoAtivoOuErro(tx, a.alunoId);
-        if (!ativo.ok) return ativo;
-        const [plano] = await tx
-          .select({ id: planos.id })
-          .from(planos)
-          .where(and(eq(planos.id, planoId), eq(planos.ativo, true)));
-        if (!plano) return falha("planoId", MENSAGEM_PLANO);
-        // Lido depois da trava: outra gravação simultânea já terminou.
-        const { periodos } = await carregarPeriodosDoAluno(tx, a.alunoId);
-        const ultimo = ultimoPeriodo(periodos);
-        if (ultimo) {
-          const fimAtual = fimEfetivo(ultimo);
-          if (inicio <= fimAtual) {
-            return falha(
-              "inicio",
-              `O período atual vai até ${formatarDia(fimAtual)}. O novo precisa começar a partir de ${formatarDia(somarDias(fimAtual, 1))}.`,
-            );
-          }
-        }
-        const [novo] = await tx
-          .insert(periodosContratados)
-          .values({
-            alunoId: a.alunoId,
-            inicio,
-            fim,
-            planoId,
-            origem: "plano",
-            criadoPor: a.feitoPor,
-          })
-          .returning({ id: periodosContratados.id });
-        return { ok: true as const, valor: { periodoId: novo.id } };
-      }),
+      db.transaction((tx) =>
+        registrarPeriodoEm(tx, a.alunoId, campos.valor, a.feitoPor),
+      ),
     {},
   );
 }
@@ -521,6 +544,43 @@ async function buscarPeriodo(tx: Executor, periodoId: string) {
   return p;
 }
 
+/** Corpo de `anularPeriodo`, dentro de uma transação já aberta. */
+async function anularPeriodoEm(
+  tx: Executor,
+  a: { periodoId: string; motivo: string; feitoPor: string },
+): Promise<Resultado<null>> {
+  const naoEncontrado = falha("_", MENSAGEM_PERIODO_NAO_ENCONTRADO);
+  const lido = await buscarPeriodo(tx, a.periodoId);
+  if (!lido) return naoEncontrado;
+  await travarAluno(tx, lido.alunoId);
+  const periodo = await buscarPeriodo(tx, a.periodoId);
+  if (!periodo) return naoEncontrado;
+  if (periodo.anuladoEm) return falha("_", MENSAGEM_JA_ANULADO);
+  if (periodo.origem === "transferencia") {
+    return falha(
+      "_",
+      "Este período veio de uma transferência. Anule a transferência.",
+    );
+  }
+  const vivos = await lancamentosVivos(tx, periodo.id);
+  if (vivos.length > 0) {
+    const um = vivos.length === 1;
+    return falha(
+      "_",
+      `Este período tem ${vivos.length} ${um ? "lançamento" : "lançamentos"}: ${juntarComE(vivos)}. ${um ? "Anule-o antes." : "Anule-os antes."}`,
+    );
+  }
+  await tx
+    .update(periodosContratados)
+    .set({
+      anuladoEm: new Date(),
+      anuladoPor: a.feitoPor,
+      motivoAnulacao: a.motivo,
+    })
+    .where(eq(periodosContratados.id, periodo.id));
+  return { ok: true as const, valor: null };
+}
+
 /**
  * Anula um período sem lançamentos vivos. Período de transferência é
  * anulado pela transferência. Vale também para aluno encerrado: corrigir o
@@ -532,41 +592,103 @@ export async function anularPeriodo(
 ): Promise<Resultado<null>> {
   const motivo = a.motivo?.trim() ?? "";
   if (!motivo) return falha("motivo", MENSAGEM_MOTIVO);
-  const naoEncontrado = falha("_", "Período não encontrado.");
-  if (!ehUuid(a.periodoId)) return naoEncontrado;
+  if (!ehUuid(a.periodoId)) {
+    return falha("_", MENSAGEM_PERIODO_NAO_ENCONTRADO);
+  }
   return executarTraduzindo<null>(
-    () =>
-      db.transaction(async (tx) => {
-        const lido = await buscarPeriodo(tx, a.periodoId);
-        if (!lido) return naoEncontrado;
-        await travarAluno(tx, lido.alunoId);
-        const periodo = await buscarPeriodo(tx, a.periodoId);
-        if (!periodo) return naoEncontrado;
-        if (periodo.anuladoEm) return falha("_", MENSAGEM_JA_ANULADO);
-        if (periodo.origem === "transferencia") {
-          return falha(
-            "_",
-            "Este período veio de uma transferência. Anule a transferência.",
-          );
-        }
-        const vivos = await lancamentosVivos(tx, periodo.id);
-        if (vivos.length > 0) {
-          const um = vivos.length === 1;
-          return falha(
-            "_",
-            `Este período tem ${vivos.length} ${um ? "lançamento" : "lançamentos"}: ${juntarComE(vivos)}. ${um ? "Anule-o antes." : "Anule-os antes."}`,
-          );
-        }
-        await tx
-          .update(periodosContratados)
-          .set({
-            anuladoEm: new Date(),
-            anuladoPor: a.feitoPor,
-            motivoAnulacao: motivo,
-          })
-          .where(eq(periodosContratados.id, periodo.id));
-        return { ok: true as const, valor: null };
-      }),
+    () => db.transaction((tx) => anularPeriodoEm(tx, { ...a, motivo })),
     {},
   );
+}
+
+/** Falha lançada dentro da transação para desfazê-la e devolvida depois. */
+class Desfazer extends Error {
+  constructor(readonly falha: Falha) {
+    super("Desfazer a transação");
+  }
+}
+
+/**
+ * Corrige um período: anula o antigo (motivo "Correção") e registra o novo,
+ * tudo ou nada. Se a anulação for recusada, devolve o erro dela; se o
+ * registro for recusado, a anulação é desfeita e volta o erro do registro.
+ */
+export async function corrigirPeriodo(
+  db: Banco,
+  a: {
+    alunoId: string;
+    periodoId: string;
+    planoId: string;
+    inicio: string;
+    fim: string;
+    feitoPor: string;
+  },
+): Promise<Resultado<{ periodoId: string }>> {
+  const campos = validarCamposPeriodo(a);
+  if (!campos.ok) return campos;
+  const naoEncontrado = falha("_", MENSAGEM_PERIODO_NAO_ENCONTRADO);
+  if (!ehUuid(a.alunoId) || !ehUuid(a.periodoId)) return naoEncontrado;
+  const alunoId = a.alunoId.toLowerCase();
+  try {
+    return await executarTraduzindo<{ periodoId: string }>(
+      () =>
+        db.transaction(async (tx) => {
+          await travarAluno(tx, alunoId);
+          const periodo = await buscarPeriodo(tx, a.periodoId);
+          if (!periodo || periodo.alunoId !== alunoId) return naoEncontrado;
+          const anulado = await anularPeriodoEm(tx, {
+            periodoId: periodo.id,
+            motivo: "Correção",
+            feitoPor: a.feitoPor,
+          });
+          if (!anulado.ok) return anulado;
+          const novo = await registrarPeriodoEm(
+            tx,
+            alunoId,
+            campos.valor,
+            a.feitoPor,
+          );
+          if (!novo.ok) throw new Desfazer(novo);
+          return novo;
+        }),
+      {},
+    );
+  } catch (erro) {
+    if (erro instanceof Desfazer) return erro.falha;
+    throw erro;
+  }
+}
+
+/**
+ * Plano e datas de um período de plano, não anulado, do aluno, para
+ * preencher o formulário de correção. `null` em qualquer outro caso.
+ */
+export async function periodoParaCorrigir(
+  db: Executor,
+  alunoId: string,
+  periodoId: string,
+): Promise<{
+  id: string;
+  planoId: string | null;
+  inicio: DataIso;
+  fim: DataIso;
+} | null> {
+  if (!ehUuid(alunoId) || !ehUuid(periodoId)) return null;
+  const [p] = await db
+    .select({
+      id: periodosContratados.id,
+      planoId: periodosContratados.planoId,
+      inicio: periodosContratados.inicio,
+      fim: periodosContratados.fim,
+    })
+    .from(periodosContratados)
+    .where(
+      and(
+        eq(periodosContratados.id, periodoId),
+        eq(periodosContratados.alunoId, alunoId),
+        eq(periodosContratados.origem, "plano"),
+        isNull(periodosContratados.anuladoEm),
+      ),
+    );
+  return p ?? null;
 }

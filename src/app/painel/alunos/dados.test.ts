@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { faltaResponsavelEscolhido, lerDadosAluno } from "./dados";
+import {
+  enderecoDepoisDoCadastro,
+  faltaResponsavelEscolhido,
+  lerDadosAluno,
+  lerDepois,
+} from "./dados";
 
 const RESP = "6f1c2a3b-4d5e-4f60-8a7b-9c0d1e2f3a4b";
 const TURMA_A = "0b1c2d3e-4f50-4a6b-8c7d-8e9f0a1b2c3d";
@@ -139,5 +144,48 @@ describe("faltaResponsavelEscolhido", () => {
       ...vazios,
     ]);
     expect(faltaResponsavelEscolhido(f, HOJE)).toBe(null);
+  });
+});
+
+describe("lerDepois", () => {
+  it("aceita caminhos dentro de /painel/alunos/", () => {
+    expect(lerDepois(`/painel/alunos/${RESP}/transferir`)).toBe(
+      `/painel/alunos/${RESP}/transferir`,
+    );
+  });
+
+  it.each([
+    ["vazio", ""],
+    ["ausente", null],
+    ["outra área", "/painel/turmas"],
+    ["a própria lista, sem barra", "/painel/alunos"],
+    ["duas barras", "/painel/alunos//evil.com"],
+    ["começa com duas barras", "//evil.com/painel/alunos/x"],
+    ["com esquema", "https://evil.com/painel/alunos/x"],
+    ["javascript:", "javascript:alert(1)//painel/alunos/"],
+    ["subindo pastas", "/painel/alunos/../../entrar"],
+    ["com consulta", "/painel/alunos/x?para=1"],
+    ["com âncora", "/painel/alunos/x#a"],
+    ["barra invertida", "/painel/alunos/\\evil.com"],
+    ["espaço", "/painel/alunos/ x"],
+  ])("recusa: %s", (_nome, valor) => {
+    expect(lerDepois(valor)).toBe(null);
+  });
+});
+
+describe("enderecoDepoisDoCadastro", () => {
+  it("volta para `depois` com ?para=<id>", () => {
+    expect(
+      enderecoDepoisDoCadastro(`/painel/alunos/${RESP}/transferir`, TURMA_A),
+    ).toBe(`/painel/alunos/${RESP}/transferir?para=${TURMA_A}`);
+  });
+
+  it("sem `depois` válido, abre a ficha do novo aluno", () => {
+    expect(enderecoDepoisDoCadastro("", TURMA_A)).toBe(
+      `/painel/alunos/${TURMA_A}`,
+    );
+    expect(enderecoDepoisDoCadastro("//evil.com", TURMA_A)).toBe(
+      `/painel/alunos/${TURMA_A}`,
+    );
   });
 });

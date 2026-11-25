@@ -13,6 +13,7 @@ import { exigirAdministracao } from "@/servidor/auth/acesso";
 import { obterBanco } from "@/servidor/banco/cliente";
 import { formatarWhatsapp } from "@/servidor/pessoas/formatar";
 import { textoDoEstado, textoDoPeriodo, textoDoResultado } from "../textos";
+import { FormularioExcluir, FormularioReabrir } from "./formularios/cadastro";
 
 export const dynamic = "force-dynamic";
 
@@ -59,8 +60,14 @@ export default async function FichaAluno({
   const hoje = hojeEmSaoPaulo();
   const ficha = await obterFicha(obterBanco(), id, hoje);
   if (!ficha) notFound();
-  const { aluno, historico, matriculasEncerradas, contatos, naoQuerContato } =
-    ficha;
+  const {
+    aluno,
+    historico,
+    matriculasEncerradas,
+    contatos,
+    naoQuerContato,
+    podeExcluir,
+  } = ficha;
   const base = `/painel/alunos/${aluno.id}`;
   const r = aluno.responsavel;
   const resumo = aluno.resumo;
@@ -274,7 +281,8 @@ export default async function FichaAluno({
                     </p>
                   )}
                 </div>
-                {ativo && (h.anular || h.destrancar) && (
+                {/* Corrigir o histórico (anular, destrancar) vale também para encerrado. */}
+                {(h.anular || h.destrancar) && (
                   <div className="flex gap-6">
                     {h.destrancar && (
                       <Link
@@ -282,6 +290,15 @@ export default async function FichaAluno({
                         className={LINK}
                       >
                         Destrancar
+                      </Link>
+                    )}
+                    {ativo && h.anular?.tipo === "periodo" && (
+                      <Link
+                        href={`${base}/periodo?corrigir=${h.anular.id}`}
+                        aria-label={`Corrigir: ${h.texto}`}
+                        className={LINK}
+                      >
+                        Corrigir
                       </Link>
                     )}
                     {h.anular && (
@@ -325,6 +342,21 @@ export default async function FichaAluno({
         )}
       </section>
 
+      {aluno.encerrado && (
+        <section aria-labelledby="ficha-reabrir" className={SECAO}>
+          <h2 id="ficha-reabrir" className="text-base">
+            Reabrir cadastro
+          </h2>
+          <p className="max-w-prose text-texto-suave">
+            O aluno volta para as listas. As matrículas encerradas não voltam
+            sozinhas: matricule de novo nas turmas.
+          </p>
+          <div className="md:self-start">
+            <FormularioReabrir alunoId={aluno.id} />
+          </div>
+        </section>
+      )}
+
       {ativo && (
         <section aria-labelledby="ficha-encerrar" className={SECAO}>
           <h2 id="ficha-encerrar" className="text-base">
@@ -340,6 +372,21 @@ export default async function FichaAluno({
           >
             Encerrar aluno
           </Link>
+        </section>
+      )}
+      {podeExcluir && (
+        <section aria-labelledby="ficha-excluir" className={SECAO}>
+          <h2 id="ficha-excluir" className="text-base">
+            Excluir cadastro
+          </h2>
+          <p className="max-w-prose text-texto-suave">
+            Só para cadastro feito por engano: este aluno ainda não tem período,
+            turma, contato nem histórico. Se a pessoa tem outro papel no
+            estúdio, só o de aluno sai.
+          </p>
+          <div className="md:self-start">
+            <FormularioExcluir alunoId={aluno.id} nome={aluno.nome} />
+          </div>
         </section>
       )}
     </main>

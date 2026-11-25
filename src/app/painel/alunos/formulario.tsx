@@ -120,11 +120,14 @@ export function FormularioAluno({
   aluno,
   turmas,
   hoje,
+  depois,
 }: {
   aluno?: AlunoParaEditar;
   /** Turmas ativas, só no cadastro. */
   turmas?: { id: string; rotulo: string }[];
   hoje: DataIso;
+  /** Só no cadastro: para onde voltar depois de salvar (já validado por `lerDepois`). */
+  depois?: string;
 }) {
   const [estado, acao] = useActionState<EstadoAluno, FormData>(
     aluno ? atualizarAlunoAcao : cadastrarAlunoAcao,
@@ -186,6 +189,7 @@ export function FormularioAluno({
     >
       <BotaoPadrao />
       {aluno && <input type="hidden" name="id" value={aluno.id} />}
+      {depois && <input type="hidden" name="depois" value={depois} />}
       {v?.responsavelNovo === "1" && (
         <input type="hidden" name="responsavelNovo" value="1" />
       )}
