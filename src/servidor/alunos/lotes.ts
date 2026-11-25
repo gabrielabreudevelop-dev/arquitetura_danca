@@ -340,6 +340,7 @@ export async function listarLotes(db: Banco): Promise<
     motivo: string;
     alunos: number;
     anulado: boolean;
+    motivoAnulacao: string | null;
   }[]
 > {
   const lotes = await db
@@ -352,6 +353,7 @@ export async function listarLotes(db: Banco): Promise<
       unidadeDigitada: lotesExtensao.unidadeDigitada,
       motivo: lotesExtensao.motivo,
       anuladoEm: lotesExtensao.anuladoEm,
+      motivoAnulacao: lotesExtensao.motivoAnulacao,
       alunos:
         sql<number>`(select count(*) from ${ajustesPeriodo} where ${ajustesPeriodo.loteId} = ${lotesExtensao.id})`.mapWith(
           Number,

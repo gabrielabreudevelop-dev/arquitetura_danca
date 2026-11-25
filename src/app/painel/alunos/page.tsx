@@ -19,6 +19,8 @@ export const dynamic = "force-dynamic";
 
 const BOTAO =
   "inline-flex min-h-12 w-full items-center justify-center rounded-sm bg-acao px-6 font-semibold text-fundo hover:bg-acao-escura md:w-auto";
+const BOTAO_SECUNDARIO =
+  "inline-flex min-h-12 w-full items-center justify-center rounded-sm border border-acao px-6 font-semibold text-link hover:bg-acao hover:text-fundo md:w-auto";
 const LINK = "text-link underline decoration-link underline-offset-4";
 
 /** Desativados continuam nos filtros (alunos podem seguir matriculados), marcados como tal. */
@@ -53,9 +55,17 @@ export default async function Alunos({
       <div className="flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
         <h1 className="text-titulo">Alunos</h1>
         {alunos.length > 0 && (
-          <Link href="/painel/alunos/novo" className={BOTAO}>
-            Novo aluno
-          </Link>
+          <div className="flex flex-col gap-4 md:flex-row">
+            <Link
+              href="/painel/alunos/estender-turma"
+              className={BOTAO_SECUNDARIO}
+            >
+              Estender turma
+            </Link>
+            <Link href="/painel/alunos/novo" className={BOTAO}>
+              Novo aluno
+            </Link>
+          </div>
         )}
       </div>
 

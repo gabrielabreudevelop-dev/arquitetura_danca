@@ -1,6 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { moverAlunosDaTurma } from "@/servidor/alunos/matriculas";
 import { exigirAdministracao } from "@/servidor/auth/acesso";
 import { obterBanco } from "@/servidor/banco/cliente";
 import { excluirTurma, salvarTurma } from "@/servidor/cadastros/turmas";
@@ -52,4 +53,35 @@ export async function excluirTurmaAcao(form: FormData): Promise<void> {
   const resultado = await excluirTurma(obterBanco(), id);
   if (!resultado.ok) redirect(`/painel/turmas/${id}?erro=em-uso`);
   redirect("/painel/turmas");
+}
+
+/**
+ * Move os alunos de uma turma para outra, a partir da data. Sem erro, volta
+ * para a edição da turma com o número de alunos movidos.
+ */
+export async function moverAlunosAcao(
+  _estado: EstadoFormulario,
+  form: FormData,
+): Promise<EstadoFormulario> {
+  await exigirAdministracao();
+  const valores = {
+    deTurmaId: lerTexto(form, "deTurmaId"),
+    paraTurmaId: lerTexto(form, "paraTurmaId"),
+    data: lerTexto(form, "data"),
+  };
+  if (!UUID.test(valores.deTurmaId)) {
+    return { erros: { _: "Turma não encontrada." }, valores };
+  }
+  if (!valores.paraTurmaId) {
+    return { erros: { paraTurmaId: "Escolha a turma de destino." }, valores };
+  }
+  const { pessoaId } = await exigirAdministracao();
+  const resultado = await moverAlunosDaTurma(obterBanco(), {
+    ...valores,
+    feitoPor: pessoaId,
+  });
+  if (!resultado.ok) return { erros: resultado.erros, valores };
+  redirect(
+    `/painel/turmas/${valores.deTurmaId}?movidos=${resultado.valor.movidos}`,
+  );
 }

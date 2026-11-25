@@ -395,6 +395,7 @@ describe("listarLotes e anularLote", () => {
       motivo: "Feriado",
       alunos: 2,
       anulado: false,
+      motivoAnulacao: null,
     });
     expect(item?.turmas).toEqual([
       `${c.ritmo.nome} ${c.modulo.nome} · ter e qui 19h`,
@@ -468,9 +469,8 @@ describe("listarLotes e anularLote", () => {
     });
     expect(l.anuladoEm).not.toBeNull();
     expect(
-      (await listarLotes(banco.db)).find((x) => x.id === r.valor.loteId)
-        ?.anulado,
-    ).toBe(true);
+      (await listarLotes(banco.db)).find((x) => x.id === r.valor.loteId),
+    ).toMatchObject({ anulado: true, motivoAnulacao: "Feriado cancelado" });
     expect(
       await anularLote(banco.db, {
         loteId: r.valor.loteId,
