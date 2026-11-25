@@ -61,7 +61,8 @@ const TIPOS_INPUT = {
 /**
  * Campo de formulário: rótulo acima, ajuda opcional e erro abaixo, ligados ao
  * controle por `aria-describedby`; com erro, o controle recebe `aria-invalid`.
- * Funciona em formulários de server action (sem estado próprio, `defaultValue`).
+ * Funciona em formulários de server action (sem estado próprio, `defaultValue`;
+ * a seleção remonta quando o valor muda).
  */
 export function Campo({
   nome,
@@ -100,8 +101,16 @@ export function Campo({
       />
     );
   } else if (tipo === "selecao") {
+    // O React só aplica `defaultValue` de <select> na montagem. Depois de um
+    // erro, o formulário é reposto e voltaria à primeira escolha; a chave
+    // presa ao valor devolvido remonta o controle já com ele.
     controle = (
-      <select defaultValue={valor} {...comum} className={estiloControle}>
+      <select
+        key={`selecao:${valor ?? ""}`}
+        defaultValue={valor}
+        {...comum}
+        className={estiloControle}
+      >
         {children}
       </select>
     );
