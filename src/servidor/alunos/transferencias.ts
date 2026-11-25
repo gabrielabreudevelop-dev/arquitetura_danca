@@ -34,12 +34,12 @@ import {
   carregarPeriodosDoAluno,
   cedidosAntes,
   diasDoAjuste,
+  lerQuantidadeAjuste,
   travarAlunosEmOrdem,
 } from "./periodos";
 
 const MENSAGEM_DATA = "Informe uma data válida.";
 const MENSAGEM_MOTIVO = "Informe o motivo.";
-const MENSAGEM_QUANTIDADE = "Informe um número inteiro maior que zero.";
 const MENSAGEM_JA_ANULADO = "Isso já foi anulado.";
 const MENSAGEM_CEDENTE =
   "Só é possível transferir de um período vigente e não trancado.";
@@ -85,13 +85,12 @@ export async function transferir(
     paraAlunoId: String(entrada.paraAlunoId ?? "").toLowerCase(),
   };
   const erros: Record<string, string> = {};
-  const texto = String(a.quantidade ?? "").trim();
-  const numero = /^\d+$/.test(texto) ? Number(texto) : 0;
-  const quantidade = Number.isSafeInteger(numero) && numero > 0 ? numero : null;
-  if (quantidade === null) erros.quantidade = MENSAGEM_QUANTIDADE;
   const unidade =
     a.unidade === "dias" || a.unidade === "aulas" ? a.unidade : null;
   if (!unidade) erros.unidade = "Escolha dias ou aulas.";
+  const lida = lerQuantidadeAjuste(a.quantidade, unidade);
+  const quantidade = lida.ok ? lida.quantidade : null;
+  if (!lida.ok) erros.quantidade = lida.mensagem;
   const motivo = a.motivo?.trim() ?? "";
   if (!motivo) erros.motivo = MENSAGEM_MOTIVO;
   const turmaId = a.turmaId?.trim() || undefined;

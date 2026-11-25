@@ -83,4 +83,13 @@ describe("ehDataIso", () => {
     expect(ehDataIso("2026-13-01")).toBe(false);
     expect(ehDataIso("2026-1-01")).toBe(false);
   });
+
+  it("só aceita datas de 1900-01-01 a 2100-12-31 (R15)", () => {
+    expect(ehDataIso("1900-01-01")).toBe(true);
+    expect(ehDataIso("2100-12-31")).toBe(true);
+    expect(ehDataIso("1899-12-31")).toBe(false);
+    expect(ehDataIso("2101-01-01")).toBe(false);
+    expect(ehDataIso("9999-12-31")).toBe(false);
+    expect(ehDataIso("0000-01-01")).toBe(false);
+  });
 });

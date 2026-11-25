@@ -27,6 +27,9 @@ const MENSAGEM_MOTIVO = "Informe o motivo.";
 const MENSAGEM_JA_ANULADO = "Isso já foi anulado.";
 const MENSAGEM_VOLTA = "A volta precisa ser depois do início.";
 const MENSAGEM_SOBREPOSTO = "Já existe um trancamento nesse intervalo.";
+/** R15: o trancamento dura no máximo dez anos. */
+const LIMITE_TRANCAMENTO = 3650;
+const MENSAGEM_VOLTA_LONGE = `A volta precisa ser até ${LIMITE_TRANCAMENTO} dias depois do início.`;
 
 type Falha = { ok: false; erros: Record<string, string> };
 
@@ -70,6 +73,9 @@ export async function trancar(
   if (volta !== null) {
     if (!ehDataIso(volta)) erros.volta = MENSAGEM_DATA;
     else if (!erros.inicio && volta <= inicio) erros.volta = MENSAGEM_VOLTA;
+    else if (!erros.inicio && diasEntre(inicio, volta) > LIMITE_TRANCAMENTO) {
+      erros.volta = MENSAGEM_VOLTA_LONGE;
+    }
   }
   if (Object.keys(erros).length > 0) return { ok: false, erros };
 
@@ -195,6 +201,9 @@ export async function destrancar(
           return falha("_", "Este trancamento já foi encerrado.");
         }
         if (volta <= t.inicio) return falha("volta", MENSAGEM_VOLTA);
+        if (diasEntre(t.inicio, volta) > LIMITE_TRANCAMENTO) {
+          return falha("volta", MENSAGEM_VOLTA_LONGE);
+        }
         const { periodos, trancamentos: outros } =
           await carregarPeriodosDoAluno(tx, t.alunoId);
         if (

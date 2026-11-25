@@ -95,9 +95,14 @@ export function ehMenor(nascimento: DataIso, hoje: DataIso): boolean {
   return idadeEm(nascimento, hoje) < 18;
 }
 
-/** "AAAA-MM-DD" de um dia que existe no calendário. */
+/** Datas aceitas nos formulários (R15): fora disso, é erro de digitação. */
+export const DATA_MINIMA: DataIso = "1900-01-01";
+export const DATA_MAXIMA: DataIso = "2100-12-31";
+
+/** "AAAA-MM-DD" de um dia que existe no calendário, de 1900 a 2100. */
 export function ehDataIso(valor: string): boolean {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(valor)) return false;
+  if (valor < DATA_MINIMA || valor > DATA_MAXIMA) return false;
   const [ano, mes, dia] = partes(valor);
   const data = new Date(Date.UTC(ano, mes - 1, dia));
   return paraIso(data.getTime()) === valor;

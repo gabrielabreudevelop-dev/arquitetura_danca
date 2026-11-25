@@ -90,6 +90,19 @@ describe("contaDaExtensao", () => {
   it("sem conta possível: nulo", () => {
     expect(contaDaExtensao("2026-12-08", "", "dias", [], "")).toBe(null);
   });
+
+  it("acima do limite (3650 dias ou 520 aulas): nulo, sem quebrar a tela", () => {
+    expect(contaDaExtensao("2026-12-08", "2000000000", "dias", [], "")).toBe(
+      null,
+    );
+    expect(contaDaExtensao("2026-12-08", "3651", "dias", [], "")).toBe(null);
+    expect(
+      contaDaExtensao("2026-12-08", "521", "aulas", [TERCA_QUINTA], ""),
+    ).toBe(null);
+    expect(contaDaExtensao("2026-12-08", "3650", "dias", [], "")).not.toBe(
+      null,
+    );
+  });
 });
 
 describe("contaDaPausa", () => {

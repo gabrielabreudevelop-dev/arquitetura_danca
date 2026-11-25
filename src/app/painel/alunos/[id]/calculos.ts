@@ -3,7 +3,11 @@
  * 08/12 para 12/12"), feitas no navegador com as mesmas regras do servidor.
  * O servidor recalcula tudo ao salvar; aqui é só a prévia.
  */
-import { diasPorAulas } from "@/servidor/alunos/conversao";
+import {
+  diasPorAulas,
+  LIMITE_AULAS,
+  LIMITE_DIAS,
+} from "@/servidor/alunos/conversao";
 import {
   type DataIso,
   diasEntre,
@@ -28,12 +32,13 @@ function contarAulas(n: number): string {
   return `${n} ${n === 1 ? "aula" : "aulas"}`;
 }
 
-/** Inteiro maior que zero digitado no campo; senão `null`. */
-function lerQuantidade(texto: string): number | null {
+/** Inteiro de 1 até o limite da unidade (R15) digitado no campo; senão `null`. */
+function lerQuantidade(texto: string, unidade: Unidade): number | null {
   const t = texto.trim();
   if (!/^\d+$/.test(t)) return null;
   const n = Number(t);
-  return Number.isSafeInteger(n) && n > 0 ? n : null;
+  const limite = unidade === "aulas" ? LIMITE_AULAS : LIMITE_DIAS;
+  return n > 0 && n <= limite ? n : null;
 }
 
 /** Fim pelo plano para o campo "Fim"; "" sem plano ou com início inválido. */
@@ -60,7 +65,7 @@ export function diasDaQuantidade(
   turmas: TurmaConversao[],
   turmaId: string,
 ): number | null {
-  const q = lerQuantidade(quantidade);
+  const q = lerQuantidade(quantidade, unidade);
   if (q === null) return null;
   if (unidade === "dias") return q;
   const turma =

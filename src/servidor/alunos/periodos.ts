@@ -19,7 +19,7 @@ import {
 import { ehUuid, executarTraduzindo } from "../cadastros/comum";
 import type { Resultado } from "../cadastros/resultado";
 import { alunoAtivoOuErro, type Executor, travar } from "./cadastro";
-import { diasPorAulas } from "./conversao";
+import { diasPorAulas, LIMITE_AULAS, LIMITE_DIAS } from "./conversao";
 import { type DataIso, ehDataIso, formatarDia, somarDias } from "./datas";
 import {
   fimEfetivo,
@@ -274,12 +274,27 @@ export async function diasDoAjuste(
   };
 }
 
-/** Inteiro maior que zero, vindo de formulário (texto) ou de código. */
-function lerQuantidade(bruto: string | number): number | null {
+/**
+ * Quantidade de um lançamento (estender, lote, transferência), vinda de
+ * formulário (texto) ou de código: inteiro de 1 até 3650 dias ou 520 aulas.
+ * Sem unidade válida, vale o limite em dias.
+ */
+export function lerQuantidadeAjuste(
+  bruto: string | number,
+  unidade: "dias" | "aulas" | null,
+): { ok: true; quantidade: number } | { ok: false; mensagem: string } {
   const texto = String(bruto ?? "").trim();
-  if (!/^\d+$/.test(texto)) return null;
+  if (!/^\d+$/.test(texto) || Number(texto) <= 0) {
+    return { ok: false, mensagem: MENSAGEM_QUANTIDADE };
+  }
   const n = Number(texto);
-  return Number.isSafeInteger(n) && n > 0 ? n : null;
+  if (unidade === "aulas" && n > LIMITE_AULAS) {
+    return { ok: false, mensagem: `Informe no máximo ${LIMITE_AULAS} aulas.` };
+  }
+  if (n > LIMITE_DIAS) {
+    return { ok: false, mensagem: `Informe no máximo ${LIMITE_DIAS} dias.` };
+  }
+  return { ok: true, quantidade: n };
 }
 
 /**
@@ -306,11 +321,12 @@ export async function estender(
   }>
 > {
   const erros: Record<string, string> = {};
-  const quantidade = lerQuantidade(a.quantidade);
-  if (quantidade === null) erros.quantidade = MENSAGEM_QUANTIDADE;
   const unidade =
     a.unidade === "dias" || a.unidade === "aulas" ? a.unidade : null;
   if (!unidade) erros.unidade = "Escolha dias ou aulas.";
+  const lida = lerQuantidadeAjuste(a.quantidade, unidade);
+  const quantidade = lida.ok ? lida.quantidade : null;
+  if (!lida.ok) erros.quantidade = lida.mensagem;
   const motivo = a.motivo?.trim() ?? "";
   if (!motivo) erros.motivo = MENSAGEM_MOTIVO;
   const turmaId = a.turmaId?.trim() || undefined;

@@ -149,6 +149,8 @@ export const transferencias = pgTable(
   },
   (t) => [
     check("transferencias_dias_positivo", sql`${t.dias} > 0`),
+    // R15: a aplicação limita a 3650 dias; o banco barra o absurdo (cem anos).
+    check("transferencias_dias_limite", sql`${t.dias} <= 36500`),
     checkAnulacao("transferencias_anulacao_completa", t),
   ],
 );
@@ -217,6 +219,8 @@ export const ajustesPeriodo = pgTable(
       "ajustes_periodo_sinal_dos_dias",
       sql`${t.dias} <> 0 and ((${t.dias} < 0) = (${t.tipo} = 'transferencia_saida'))`,
     ),
+    // R15: a aplicação limita a 3650 dias; o banco barra o absurdo (cem anos).
+    check("ajustes_periodo_dias_limite", sql`abs(${t.dias}) <= 36500`),
     check(
       "ajustes_periodo_aulas_com_turma",
       sql`${t.unidadeDigitada} <> 'aulas' or ${t.turmaConversaoId} is not null`,

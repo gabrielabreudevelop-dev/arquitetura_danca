@@ -31,11 +31,11 @@ import {
   anuleAntesAsTransferencias,
   carregarPeriodosDoAluno,
   cedidosAntes,
+  lerQuantidadeAjuste,
   travarAlunosEmOrdem,
 } from "./periodos";
 
 const MENSAGEM_MOTIVO = "Informe o motivo.";
-const MENSAGEM_QUANTIDADE = "Informe um número inteiro maior que zero.";
 const MENSAGEM_JA_ANULADO = "Isso já foi anulado.";
 const MENSAGEM_TURMAS_ATIVAS = "Escolha turmas ativas.";
 const MENSAGEM_SEM_ALUNO = "Nenhum aluno vigente nessas turmas.";
@@ -81,13 +81,12 @@ type LinhaInterna = LinhaPrevia & { periodoId: string };
 /** Valida o que não precisa do banco; devolve o pedido ou os erros por campo. */
 function lerPedido(a: Entrada): Resultado<Pedido> {
   const erros: Record<string, string> = {};
-  const texto = String(a.quantidade ?? "").trim();
-  const numero = /^\d+$/.test(texto) ? Number(texto) : 0;
-  const quantidade = Number.isSafeInteger(numero) && numero > 0 ? numero : null;
-  if (quantidade === null) erros.quantidade = MENSAGEM_QUANTIDADE;
   const unidade =
     a.unidade === "dias" || a.unidade === "aulas" ? a.unidade : null;
   if (!unidade) erros.unidade = "Escolha dias ou aulas.";
+  const lida = lerQuantidadeAjuste(a.quantidade, unidade);
+  const quantidade = lida.ok ? lida.quantidade : null;
+  if (!lida.ok) erros.quantidade = lida.mensagem;
   const todoEstudio = a.escopo?.tipo === "estudio";
   let turmaIds: string[] = [];
   if (todoEstudio) {
