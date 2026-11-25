@@ -10,30 +10,6 @@ const EQUIPES: Partial<Record<Papel, string>> = {
   atendente: "atendimento",
 };
 
-const ATALHOS = [
-  {
-    href: "/painel/eventos",
-    rotulo: "Eventos",
-    descricao: "Divulgação e ingressos",
-  },
-  { href: "/painel/turmas", rotulo: "Turmas", descricao: "Grade de horários" },
-  {
-    href: "/painel/ritmos",
-    rotulo: "Ritmos",
-    descricao: "Os estilos de dança",
-  },
-  {
-    href: "/painel/modulos",
-    rotulo: "Módulos",
-    descricao: "Os níveis de cada ritmo",
-  },
-  {
-    href: "/painel/professores",
-    rotulo: "Professores",
-    descricao: "Quem dá as aulas",
-  },
-];
-
 // Por ora serve só para provar o acesso; o dashboard vem em marcos futuros.
 export default async function Painel() {
   const { nome, papeis } = await exigirPapel(["administracao", "atendente"]);
@@ -50,33 +26,22 @@ export default async function Painel() {
 
       {papeis.includes("administracao") ? (
         <section
-          aria-labelledby="painel-cadastros"
+          aria-labelledby="painel-alunos"
           className="flex max-w-prose flex-col gap-4 border-linha border-t pt-6"
         >
-          <h2 id="painel-cadastros" className="text-base">
-            Cadastros da vitrine
+          <h2 id="painel-alunos" className="text-base">
+            Alunos e períodos
           </h2>
           <p className="text-texto-suave">
-            O que aparece no site do estúdio. Alunos e períodos contratados
-            chegam nos próximos marcos.
+            O resumo dos períodos contratados chega aqui em breve. Por enquanto,
+            cadastre e acompanhe os alunos na lista.
           </p>
-          <ul className="flex flex-col">
-            {ATALHOS.map(({ href, rotulo, descricao }) => (
-              <li key={href} className="border-linha border-b first:border-t">
-                <Link
-                  href={href}
-                  className="flex min-h-12 flex-col justify-center gap-1 py-3 hover:bg-fundo-suave md:flex-row md:items-center md:justify-between md:gap-6"
-                >
-                  <span className="font-semibold text-link underline decoration-link underline-offset-4">
-                    {rotulo}
-                  </span>
-                  <span className="text-pequeno text-texto-suave">
-                    {descricao}
-                  </span>
-                </Link>
-              </li>
-            ))}
-          </ul>
+          <Link
+            href="/painel/alunos"
+            className="-mx-2 flex min-h-12 items-center self-start px-2 font-semibold text-link underline decoration-link underline-offset-4"
+          >
+            Abrir a lista de alunos
+          </Link>
         </section>
       ) : (
         <section
