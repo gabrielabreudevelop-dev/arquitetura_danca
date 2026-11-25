@@ -78,6 +78,19 @@ function BotaoPergunta({
   );
 }
 
+/**
+ * Primeiro botão de envio do formulário, invisível: é ele que o Enter (ou o
+ * "Ir" do teclado do celular) aciona. Envia sem nenhuma confirmação, então
+ * uma pergunta pendente é feita de novo em vez de respondida por engano.
+ */
+function BotaoPadrao() {
+  return (
+    <button type="submit" tabIndex={-1} aria-hidden className="sr-only">
+      Salvar
+    </button>
+  );
+}
+
 /** "Tornar aluno": outra action, no mesmo formulário. */
 function BotaoTornarAluno({ pessoaId }: { pessoaId: string }) {
   const { pending } = useFormStatus();
@@ -171,6 +184,7 @@ export function FormularioAluno({
       noValidate
       className="flex flex-col gap-6"
     >
+      <BotaoPadrao />
       {aluno && <input type="hidden" name="id" value={aluno.id} />}
       {v?.responsavelNovo === "1" && (
         <input type="hidden" name="responsavelNovo" value="1" />

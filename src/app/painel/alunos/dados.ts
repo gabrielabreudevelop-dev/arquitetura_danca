@@ -1,4 +1,5 @@
 import type { DadosAluno } from "@/servidor/alunos/cadastro";
+import { type DataIso, ehDataIso, ehMenor } from "@/servidor/alunos/datas";
 import { lerTexto } from "../_formulario/ler-texto";
 
 const CAMPOS = [
@@ -61,5 +62,26 @@ export function lerDadosAluno(form: FormData): {
       turmaIds,
     },
     valores,
+  };
+}
+
+/**
+ * Menor com "Cadastrar outro responsável" marcado (campo `responsavelId`
+ * presente e vazio) e sem nenhum dado do novo responsável: devolve os erros
+ * dos campos. Sem isso, o serviço manteria o responsável atual em silêncio.
+ */
+export function faltaResponsavelEscolhido(
+  form: FormData,
+  hoje: DataIso,
+): Record<string, string> | null {
+  const nascimento = lerTexto(form, "nascimento").trim();
+  const menor = ehDataIso(nascimento) && ehMenor(nascimento, hoje);
+  const pediuOutro =
+    form.has("responsavelId") && !lerTexto(form, "responsavelId").trim();
+  const vazio = CAMPOS_RESPONSAVEL.every((c) => !lerTexto(form, c).trim());
+  if (!menor || !pediuOutro || !vazio) return null;
+  return {
+    "responsavel.nome": "Informe o responsável.",
+    "responsavel.whatsapp": "Informe o WhatsApp do responsável.",
   };
 }

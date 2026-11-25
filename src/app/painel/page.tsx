@@ -10,7 +10,6 @@ const EQUIPES: Partial<Record<Papel, string>> = {
   atendente: "atendimento",
 };
 
-// Por ora serve só para provar o acesso; o dashboard vem em marcos futuros.
 export default async function Painel() {
   const { nome, papeis } = await exigirPapel(["administracao", "atendente"]);
   const equipes = papeis.flatMap((p) => EQUIPES[p] ?? []).join(" e ");

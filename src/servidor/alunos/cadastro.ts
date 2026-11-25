@@ -35,6 +35,25 @@ const MENSAGEM_WHATSAPP = "WhatsApp inválido. Use DDD e número.";
 const MENSAGEM_TURMAS = "Escolha turmas ativas.";
 const MENSAGEM_RESPONSAVEL_NAO_ENCONTRADO = "Responsável não encontrado.";
 
+const INICIO_WHATSAPP_REPETIDO = "Já existe ";
+const FIM_WHATSAPP_REPETIDO = " com esse WhatsApp.";
+
+/** Erro do campo `whatsapp` na edição quando outra pessoa já usa o número (não bloqueia de vez: a tela oferece confirmar). */
+export function mensagemWhatsappRepetido(nome: string): string {
+  return `${INICIO_WHATSAPP_REPETIDO}${nome}${FIM_WHATSAPP_REPETIDO}`;
+}
+
+/** A mensagem é a de `mensagemWhatsappRepetido`? */
+export function ehMensagemWhatsappRepetido(
+  mensagem: string | undefined,
+): boolean {
+  if (!mensagem) return false;
+  return (
+    mensagem.startsWith(INICIO_WHATSAPP_REPETIDO) &&
+    mensagem.endsWith(FIM_WHATSAPP_REPETIDO)
+  );
+}
+
 const ERROS_BANCO = {
   pessoas_email_unico: {
     campo: "email",
@@ -551,7 +570,7 @@ export async function atualizarAluno(
           if (outra) {
             return {
               ok: false,
-              erros: { whatsapp: `Já existe ${outra.nome} com esse WhatsApp.` },
+              erros: { whatsapp: mensagemWhatsappRepetido(outra.nome) },
             };
           }
         }

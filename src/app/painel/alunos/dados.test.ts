@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { lerDadosAluno } from "./dados";
+import { faltaResponsavelEscolhido, lerDadosAluno } from "./dados";
 
 const RESP = "6f1c2a3b-4d5e-4f60-8a7b-9c0d1e2f3a4b";
 const TURMA_A = "0b1c2d3e-4f50-4a6b-8c7d-8e9f0a1b2c3d";
@@ -90,5 +90,54 @@ describe("lerDadosAluno", () => {
       form([...BASICO, ["confirmarWhatsappRepetido", "1"]]),
     );
     expect(dados.confirmarWhatsappRepetido).toBe(true);
+  });
+});
+
+describe("faltaResponsavelEscolhido", () => {
+  const HOJE = "2026-11-25";
+  const vazios: [string, string][] = [
+    ["responsavel.nome", ""],
+    ["responsavel.whatsapp", ""],
+    ["responsavel.email", ""],
+  ];
+
+  it("menor com 'Cadastrar outro responsável' e campos vazios é erro", () => {
+    const f = form([...BASICO, ["responsavelId", ""], ...vazios]);
+    expect(faltaResponsavelEscolhido(f, HOJE)).toEqual({
+      "responsavel.nome": "Informe o responsável.",
+      "responsavel.whatsapp": "Informe o WhatsApp do responsável.",
+    });
+  });
+
+  it("sem a escolha na tela, mantendo o atual ou com dados digitados, nada", () => {
+    expect(faltaResponsavelEscolhido(form([...BASICO, ...vazios]), HOJE)).toBe(
+      null,
+    );
+    expect(
+      faltaResponsavelEscolhido(
+        form([...BASICO, ["responsavelId", RESP], ...vazios]),
+        HOJE,
+      ),
+    ).toBe(null);
+    expect(
+      faltaResponsavelEscolhido(
+        form([
+          ...BASICO,
+          ["responsavelId", ""],
+          ["responsavel.nome", "Carla Lima"],
+        ]),
+        HOJE,
+      ),
+    ).toBe(null);
+  });
+
+  it("adulto não precisa de responsável", () => {
+    const f = form([
+      ["nome", "Ana"],
+      ["nascimento", "1990-01-01"],
+      ["responsavelId", ""],
+      ...vazios,
+    ]);
+    expect(faltaResponsavelEscolhido(f, HOJE)).toBe(null);
   });
 });
