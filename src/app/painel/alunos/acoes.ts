@@ -1,0 +1,104 @@
+"use server";
+
+import { redirect } from "next/navigation";
+import {
+  atualizarAluno,
+  cadastrarAluno,
+  ehMensagemWhatsappRepetido,
+  MENSAGEM_ENCERRADO,
+  tornarAluno,
+} from "@/servidor/alunos/cadastro";
+import { hojeEmSaoPaulo } from "@/servidor/alunos/datas";
+import { exigirAdministracao } from "@/servidor/auth/acesso";
+import { obterBanco } from "@/servidor/banco/cliente";
+import { ehUuid } from "@/servidor/cadastros/comum";
+import { lerTexto } from "../_formulario/ler-texto";
+import {
+  enderecoDepoisDoCadastro,
+  faltaResponsavelEscolhido,
+  lerDadosAluno,
+  lerDepois,
+} from "./dados";
+import type { EstadoAluno } from "./estado";
+
+const NAO_ENCONTRADO = { _: "Aluno não encontrado." };
+
+/**
+ * Cadastra o aluno; com uma pergunta pendente, devolve-a sem gravar nada.
+ * Sucesso → ficha, ou `<depois>?para=<id>` quando o formulário traz um
+ * `depois` válido (ex.: voltar à transferência com o novo aluno escolhido).
+ */
+export async function cadastrarAlunoAcao(
+  _estado: EstadoAluno,
+  form: FormData,
+): Promise<EstadoAluno> {
+  await exigirAdministracao();
+  // O teste estático exige a linha acima exatamente assim; esta só pega quem faz.
+  const { pessoaId: feitoPor } = await exigirAdministracao();
+  const hoje = hojeEmSaoPaulo();
+  const { dados, valores } = lerDadosAluno(form);
+  const falta = faltaResponsavelEscolhido(form, hoje);
+  if (falta) return { erros: falta, valores };
+  const resultado = await cadastrarAluno(obterBanco(), dados, feitoPor, hoje);
+  if (!resultado.ok) return { erros: resultado.erros, valores };
+  const v = resultado.valor;
+  switch (v.tipo) {
+    case "pessoa-existente":
+      return {
+        valores,
+        existente: { pessoaId: v.pessoaId, nome: v.nome, jaAluno: v.jaAluno },
+      };
+    case "responsavel-existente":
+      return {
+        valores,
+        responsavelExistente: { pessoaId: v.pessoaId, nome: v.nome },
+      };
+    case "whatsapp-repetido":
+      return {
+        valores,
+        whatsappRepetido: { pessoaId: v.pessoaId, nome: v.nome },
+      };
+  }
+  redirect(enderecoDepoisDoCadastro(lerTexto(form, "depois"), v.alunoId));
+}
+
+/** Dá o papel de aluno a quem já está cadastrado (e-mail repetido) e abre a ficha (ou volta para `depois`). */
+export async function tornarAlunoAcao(form: FormData): Promise<void> {
+  await exigirAdministracao();
+  const id = lerTexto(form, "pessoaId");
+  const depois = lerDepois(lerTexto(form, "depois"));
+  const deVolta = (erro: string) =>
+    `/painel/alunos/novo?erro=${erro}${depois ? `&depois=${encodeURIComponent(depois)}` : ""}`;
+  if (!ehUuid(id)) redirect(deVolta("nao-encontrada"));
+  const resultado = await tornarAluno(obterBanco(), id);
+  if (!resultado.ok) {
+    const encerrado = resultado.erros._ === MENSAGEM_ENCERRADO;
+    redirect(deVolta(encerrado ? "encerrado" : "nao-encontrada"));
+  }
+  redirect(enderecoDepoisDoCadastro(depois ?? "", id));
+}
+
+/** Atualiza os dados do aluno. Sucesso → ficha. */
+export async function atualizarAlunoAcao(
+  _estado: EstadoAluno,
+  form: FormData,
+): Promise<EstadoAluno> {
+  await exigirAdministracao();
+  const id = lerTexto(form, "id");
+  const hoje = hojeEmSaoPaulo();
+  const { dados, valores } = lerDadosAluno(form);
+  if (!ehUuid(id)) return { erros: NAO_ENCONTRADO, valores };
+  const falta = faltaResponsavelEscolhido(form, hoje);
+  if (falta) return { erros: falta, valores };
+  const resultado = await atualizarAluno(obterBanco(), id, dados, hoje);
+  if (!resultado.ok) {
+    // WhatsApp de outra pessoa não bloqueia (irmãos usam o da mãe): o
+    // formulário mostra o erro ao lado do campo e oferece "Salvar mesmo assim".
+    const repetido = ehMensagemWhatsappRepetido(resultado.erros.whatsapp);
+    return {
+      erros: resultado.erros,
+      valores: repetido ? { ...valores, whatsappRepetido: "1" } : valores,
+    };
+  }
+  redirect(`/painel/alunos/${id}`);
+}

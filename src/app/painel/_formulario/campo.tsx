@@ -4,8 +4,10 @@ const estiloControle =
   "min-h-12 w-full rounded-sm border border-borda bg-transparent px-3 text-base aria-invalid:border-erro";
 
 type PropsCampo = {
-  /** Nome do campo no formulário (também o id e a chave em `erros`). */
+  /** Nome do campo no formulário (também o id, salvo `id`, e a chave em `erros`). */
   nome: string;
+  /** Id do controle, quando a página tem vários formulários com o mesmo `nome`. */
+  id?: string;
   /** Rótulo, acima do controle. */
   rotulo: string;
   /**
@@ -59,10 +61,12 @@ const TIPOS_INPUT = {
 /**
  * Campo de formulário: rótulo acima, ajuda opcional e erro abaixo, ligados ao
  * controle por `aria-describedby`; com erro, o controle recebe `aria-invalid`.
- * Funciona em formulários de server action (sem estado próprio, `defaultValue`).
+ * Funciona em formulários de server action (sem estado próprio, `defaultValue`;
+ * a seleção remonta quando o valor muda).
  */
 export function Campo({
   nome,
+  id = nome,
   rotulo,
   tipo = "texto",
   valor,
@@ -74,11 +78,11 @@ export function Campo({
   aoMudar,
   children,
 }: PropsCampo) {
-  const idAjuda = ajuda ? `${nome}-ajuda` : undefined;
-  const idErro = erro ? `${nome}-erro` : undefined;
+  const idAjuda = ajuda ? `${id}-ajuda` : undefined;
+  const idErro = erro ? `${id}-erro` : undefined;
   const descricao = [idAjuda, idErro].filter(Boolean).join(" ") || undefined;
   const comum = {
-    id: nome,
+    id,
     name: nome,
     required: obrigatorio,
     "aria-invalid": erro ? true : undefined,
@@ -97,8 +101,16 @@ export function Campo({
       />
     );
   } else if (tipo === "selecao") {
+    // O React só aplica `defaultValue` de <select> na montagem. Depois de um
+    // erro, o formulário é reposto e voltaria à primeira escolha; a chave
+    // presa ao valor devolvido remonta o controle já com ele.
     controle = (
-      <select defaultValue={valor} {...comum} className={estiloControle}>
+      <select
+        key={`selecao:${valor ?? ""}`}
+        defaultValue={valor}
+        {...comum}
+        className={estiloControle}
+      >
         {children}
       </select>
     );
@@ -150,7 +162,7 @@ export function Campo({
     return (
       <div className="flex flex-col gap-2">
         <label
-          htmlFor={nome}
+          htmlFor={id}
           className="-mx-2 flex min-h-12 items-center gap-3 px-2 font-semibold"
         >
           {controle}
@@ -162,7 +174,7 @@ export function Campo({
   }
   return (
     <div className="flex flex-col gap-2">
-      <label htmlFor={nome} className="font-semibold">
+      <label htmlFor={id} className="font-semibold">
         {rotulo}
       </label>
       {controle}

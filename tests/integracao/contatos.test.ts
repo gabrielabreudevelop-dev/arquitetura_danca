@@ -1,0 +1,967 @@
+import { and, eq, inArray, isNull } from "drizzle-orm";
+import { Pool } from "pg";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import {
+  cadastrarAluno,
+  type DadosAluno,
+  encerrarAluno,
+} from "@/servidor/alunos/cadastro";
+import { hojeEmSaoPaulo } from "@/servidor/alunos/datas";
+import { matricular } from "@/servidor/alunos/matriculas";
+import { estender, registrarPeriodo } from "@/servidor/alunos/periodos";
+import {
+  bloqueiosContato,
+  contatos,
+  mensagensProntas,
+} from "@/servidor/banco/esquema";
+import {
+  desfazerNaoQuerContato,
+  marcarNaoQuerContato,
+  marcarResultado,
+  prepararContato,
+  registrarContato,
+  ultimosGruposDosAlunos,
+} from "@/servidor/contatos/contatos";
+import { criarBancoDeTeste } from "../apoio/banco";
+import {
+  criarAdministracao,
+  criarAluno,
+  criarModulo,
+  criarPlano,
+  criarRitmo,
+  criarTurma,
+} from "../apoio/fabricas";
+
+let banco: Awaited<ReturnType<typeof criarBancoDeTeste>>;
+let adm: Awaited<ReturnType<typeof criarAdministracao>>;
+let plano: Awaited<ReturnType<typeof criarPlano>>;
+let forro: Awaited<ReturnType<typeof criarTurma>>;
+let samba: Awaited<ReturnType<typeof criarTurma>>;
+
+const HOJE = "2026-11-22";
+
+beforeAll(async () => {
+  banco = await criarBancoDeTeste();
+  adm = await criarAdministracao(banco.db);
+  plano = await criarPlano(banco.db, { nome: "Mensal" });
+  forro = await criarTurma(banco.db, {
+    ritmoId: (await criarRitmo(banco.db, { nome: "Forró" })).id,
+    moduloId: (await criarModulo(banco.db, { nome: "Iniciante" })).id,
+  });
+  samba = await criarTurma(banco.db, {
+    ritmoId: (await criarRitmo(banco.db, { nome: "Samba" })).id,
+    moduloId: (await criarModulo(banco.db, { nome: "Intermediário" })).id,
+  });
+});
+afterAll(async () => {
+  await banco.encerrar();
+});
+
+function ok<T>(r: { ok: true; valor: T } | { ok: false; erros: unknown }): T {
+  if (!r.ok) throw new Error(JSON.stringify(r.erros));
+  return r.valor;
+}
+
+function erros<T>(
+  r: { ok: true; valor: T } | { ok: false; erros: Record<string, string> },
+): Record<string, string> {
+  if (r.ok) throw new Error("era para dar erro");
+  return r.erros;
+}
+
+let sequencia = 0;
+/** WhatsApp normalizado distinto a cada chamada: "5527999990001"... */
+function numero(): string {
+  sequencia += 1;
+  return `55279${String(99990000 + sequencia)}`;
+}
+
+async function cadastrar(
+  dados: Partial<DadosAluno> & { nome: string },
+  hoje = HOJE,
+): Promise<string> {
+  const valor = ok(
+    await cadastrarAluno(
+      banco.db,
+      { nascimento: "1990-01-01", ...dados },
+      adm.id,
+      hoje,
+    ),
+  );
+  if (valor.tipo !== "criado") throw new Error(valor.tipo);
+  return valor.alunoId;
+}
+
+async function periodo(alunoId: string, inicio: string, fim: string) {
+  return ok(
+    await registrarPeriodo(banco.db, {
+      alunoId,
+      planoId: plano.id,
+      inicio,
+      fim,
+      feitoPor: adm.id,
+    }),
+  ).periodoId;
+}
+
+async function matricularEm(alunoId: string, turmaId: string) {
+  ok(
+    await matricular(banco.db, {
+      alunoId,
+      turmaId,
+      entrada: "2026-10-01",
+      feitoPor: adm.id,
+    }),
+  );
+}
+
+/** Texto do parâmetro `text` do link, já decodificado. */
+function textoDoLink(url: string): string | null {
+  return new URL(url).searchParams.get("text");
+}
+
+async function irmaos() {
+  const carla = numero();
+  const bruno = await cadastrar({
+    nome: "Bruno Lima",
+    nascimento: "2014-03-10",
+    responsavel: { novo: true, nome: "Carla Lima", whatsapp: carla },
+  });
+  const [linhaCarla] = await banco.sql(
+    `select responsavel_id from responsabilidades where aluno_id = '${bruno}'`,
+  );
+  const carlaId = (linhaCarla as { responsavel_id: string }).responsavel_id;
+  const lia = await cadastrar({
+    nome: "Lia Lima",
+    nascimento: "2016-07-01",
+    responsavel: { pessoaId: carlaId },
+  });
+  await periodo(bruno, "2026-10-01", "2026-10-31");
+  await periodo(lia, "2026-10-01", "2026-11-02");
+  await matricularEm(bruno, samba.id);
+  await matricularEm(lia, forro.id);
+  await matricularEm(lia, samba.id);
+  return { bruno, lia, carla, carlaId };
+}
+
+describe("prepararContato", () => {
+  it("adulto vencido: WhatsApp dele e o convite para voltar preenchido", async () => {
+    const whatsapp = numero();
+    const ana = await cadastrar({ nome: "Ana Souza", whatsapp });
+    await periodo(ana, "2026-10-01", "2026-10-31");
+    await matricularEm(ana, forro.id);
+
+    const valor = ok(
+      await prepararContato(
+        banco.db,
+        { alunoIds: [ana], lista: "vencido" },
+        HOJE,
+      ),
+    );
+    expect(valor.url.startsWith(`https://wa.me/${whatsapp}?text=`)).toBe(true);
+    expect(textoDoLink(valor.url)).toBe(
+      "Oi, Ana! Sentimos falta de Ana na pista. Que tal voltar para a turma de Forró Iniciante? Estamos te esperando.",
+    );
+    expect(valor.texto).toBe(textoDoLink(valor.url));
+    expect(valor.mensagemId).not.toBeNull();
+    expect(valor.pessoa).toMatchObject({ pessoaId: ana, nome: "Ana Souza" });
+  });
+
+  it("irmãos menores: número e saudação da mãe, alunos e turmas juntos", async () => {
+    const { bruno, lia, carla } = await irmaos();
+    const valor = ok(
+      await prepararContato(
+        banco.db,
+        { alunoIds: [bruno, lia], lista: "vencido" },
+        HOJE,
+      ),
+    );
+    expect(valor.url.startsWith(`https://wa.me/${carla}?text=`)).toBe(true);
+    expect(textoDoLink(valor.url)).toBe(
+      "Oi, Carla! Sentimos falta de Bruno e Lia na pista. Que tal voltar para a turma de Samba Intermediário e Forró Iniciante? Estamos te esperando.",
+    );
+  });
+
+  it("vence em breve usa a mensagem de renovação com os fins efetivos", async () => {
+    const { bruno, lia } = await irmaos();
+    await periodo(bruno, "2026-11-01", "2026-11-30");
+    await periodo(lia, "2026-11-03", "2026-11-25");
+    ok(
+      await estender(
+        banco.db,
+        {
+          alunoId: bruno,
+          quantidade: "2",
+          unidade: "dias",
+          motivo: "feriado",
+          feitoPor: adm.id,
+        },
+        HOJE,
+      ),
+    );
+    const valor = ok(
+      await prepararContato(
+        banco.db,
+        { alunoIds: [bruno, lia], lista: "vence_em_breve" },
+        HOJE,
+      ),
+    );
+    expect(textoDoLink(valor.url)).toBe(
+      "Oi, Carla! Tudo bem? O período de Bruno e Lia na Arquitetura da Dança vai até 02/12 e 25/11. Quer renovar para continuar dançando com a turma de Samba Intermediário e Forró Iniciante?",
+    );
+  });
+
+  it("ficha: renovação se vigente, convite para voltar se vencido", async () => {
+    const vigente = await cadastrar({
+      nome: "Vera Vigente",
+      whatsapp: numero(),
+    });
+    await periodo(vigente, "2026-11-01", "2026-11-30");
+    const vencido = await cadastrar({
+      nome: "Davi Vencido",
+      whatsapp: numero(),
+    });
+    await periodo(vencido, "2026-10-01", "2026-10-31");
+
+    const deVigente = ok(
+      await prepararContato(
+        banco.db,
+        { alunoIds: [vigente], lista: "ficha" },
+        HOJE,
+      ),
+    );
+    expect(deVigente.texto).toContain("Quer renovar");
+    const deVencido = ok(
+      await prepararContato(
+        banco.db,
+        { alunoIds: [vencido], lista: "ficha" },
+        HOJE,
+      ),
+    );
+    expect(deVencido.texto).toContain("Sentimos falta de Davi");
+  });
+
+  it("adulto de 18 anos sem WhatsApp usa o número do responsável", async () => {
+    const iara = numero();
+    const hugo = await cadastrar(
+      {
+        nome: "Hugo Dezoito",
+        nascimento: "2008-11-01",
+        responsavel: { novo: true, nome: "Iara Pai", whatsapp: iara },
+      },
+      "2026-10-15",
+    );
+    await periodo(hugo, "2026-10-01", "2026-10-31");
+    const valor = ok(
+      await prepararContato(
+        banco.db,
+        { alunoIds: [hugo], lista: "vencido" },
+        HOJE,
+      ),
+    );
+    expect(valor.url.startsWith(`https://wa.me/${iara}?text=`)).toBe(true);
+    expect(textoDoLink(valor.url)).toContain("Oi, Iara!");
+    expect(textoDoLink(valor.url)).toContain("falta de Hugo");
+  });
+
+  it("alunos com contatos diferentes dão erro", async () => {
+    const a = await cadastrar({ nome: "Ana Um", whatsapp: numero() });
+    const b = await cadastrar({ nome: "Bia Dois", whatsapp: numero() });
+    expect(
+      erros(
+        await prepararContato(
+          banco.db,
+          { alunoIds: [a, b], lista: "vencido" },
+          HOJE,
+        ),
+      ),
+    ).toEqual({ _: "Esses alunos não têm o mesmo contato." });
+  });
+
+  it("pessoa que não quer contato dá erro", async () => {
+    const a = await cadastrar({ nome: "Bloqueada Silva", whatsapp: numero() });
+    ok(await marcarNaoQuerContato(banco.db, { pessoaId: a, feitoPor: adm.id }));
+    expect(
+      erros(
+        await prepararContato(
+          banco.db,
+          { alunoIds: [a], lista: "ficha" },
+          HOJE,
+        ),
+      ),
+    ).toEqual({ _: "Esta pessoa pediu para não ser contatada." });
+  });
+
+  it("sem WhatsApp dá erro", async () => {
+    const sem = (
+      await criarAluno(banco.db, { nome: "João Sem Número", whatsapp: null })
+    ).id;
+    expect(
+      erros(
+        await prepararContato(
+          banco.db,
+          { alunoIds: [sem], lista: "ficha" },
+          HOJE,
+        ),
+      ),
+    ).toEqual({ _: "Cadastre um WhatsApp antes de chamar." });
+  });
+
+  it("aluno inexistente, id inválido ou encerrado dão erro", async () => {
+    for (const alunoIds of [
+      [],
+      ["não-é-uuid"],
+      ["00000000-0000-4000-8000-000000000000"],
+    ]) {
+      expect(
+        erros(
+          await prepararContato(banco.db, { alunoIds, lista: "ficha" }, HOJE),
+        ),
+      ).toEqual({ _: "Aluno não encontrado." });
+    }
+    const enc = await cadastrar({
+      nome: "Encerrado Silva",
+      whatsapp: numero(),
+    });
+    ok(
+      await encerrarAluno(banco.db, {
+        alunoId: enc,
+        data: HOJE,
+        feitoPor: adm.id,
+      }),
+    );
+    expect(
+      erros(
+        await prepararContato(
+          banco.db,
+          { alunoIds: [enc], lista: "ficha" },
+          HOJE,
+        ),
+      ),
+    ).toEqual({ _: "Este aluno está encerrado. Reabra o cadastro antes." });
+  });
+
+  it("codifica & e acentos no link", async () => {
+    const ritmo = await criarRitmo(banco.db, { nome: "Xote & Baião" });
+    const turma = await criarTurma(banco.db, {
+      ritmoId: ritmo.id,
+      moduloId: (await criarModulo(banco.db, { nome: "Avançado" })).id,
+    });
+    const whatsapp = numero();
+    const id = await cadastrar({ nome: "Ângela Müller", whatsapp });
+    await periodo(id, "2026-10-01", "2026-10-31");
+    await matricularEm(id, turma.id);
+
+    const valor = ok(
+      await prepararContato(
+        banco.db,
+        { alunoIds: [id], lista: "vencido" },
+        HOJE,
+      ),
+    );
+    const esperado =
+      "Oi, Ângela! Sentimos falta de Ângela na pista. Que tal voltar para a turma de Xote & Baião Avançado? Estamos te esperando.";
+    expect(valor.url).toBe(
+      `https://wa.me/${whatsapp}?text=${encodeURIComponent(esperado)}`,
+    );
+    expect(valor.url).toContain("%26");
+    expect(valor.url).not.toMatch(/[ &]Ba/);
+    expect(textoDoLink(valor.url)).toBe(esperado);
+  });
+
+  it("sem mensagem ativa: link sem texto", async () => {
+    const whatsapp = numero();
+    const id = await cadastrar({ nome: "Sem Mensagem", whatsapp });
+    await periodo(id, "2026-10-01", "2026-10-31");
+    const desativadas = await banco.db
+      .update(mensagensProntas)
+      .set({ ativa: false })
+      .where(
+        and(
+          eq(mensagensProntas.finalidade, "retorno"),
+          eq(mensagensProntas.ativa, true),
+        ),
+      )
+      .returning({ id: mensagensProntas.id });
+    try {
+      const valor = ok(
+        await prepararContato(
+          banco.db,
+          { alunoIds: [id], lista: "vencido" },
+          HOJE,
+        ),
+      );
+      expect(valor).toMatchObject({
+        url: `https://wa.me/${whatsapp}`,
+        texto: null,
+        mensagemId: null,
+      });
+    } finally {
+      if (desativadas.length > 0) {
+        await banco.db
+          .update(mensagensProntas)
+          .set({ ativa: true })
+          .where(
+            inArray(
+              mensagensProntas.id,
+              desativadas.map((m) => m.id),
+            ),
+          );
+      }
+    }
+  });
+});
+
+describe("registrarContato e resultado", () => {
+  it("grava uma linha por aluno com o mesmo grupo", async () => {
+    const { bruno, lia, carla, carlaId } = await irmaos();
+    const valor = ok(
+      await registrarContato(
+        banco.db,
+        { alunoIds: [bruno, lia], lista: "vencido", feitoPor: adm.id },
+        HOJE,
+      ),
+    );
+    expect(valor.url.startsWith(`https://wa.me/${carla}?text=`)).toBe(true);
+    const linhas = await banco.db
+      .select()
+      .from(contatos)
+      .where(eq(contatos.grupoId, valor.grupoId));
+    expect(linhas).toHaveLength(2);
+    expect(new Set(linhas.map((l) => l.alunoId))).toEqual(
+      new Set([bruno, lia]),
+    );
+    const [mensagem] = await banco.db
+      .select()
+      .from(mensagensProntas)
+      .where(eq(mensagensProntas.nome, "Convite para voltar"));
+    for (const l of linhas) {
+      expect(l).toMatchObject({
+        pessoaContatoId: carlaId,
+        whatsapp: carla,
+        lista: "vencido",
+        mensagemId: mensagem.id,
+        texto: textoDoLink(valor.url),
+        criadoPor: adm.id,
+        resultado: null,
+      });
+    }
+    expect(linhas[0].criadoEm.getTime()).toBe(linhas[1].criadoEm.getTime());
+  });
+
+  it("não grava nada quando o contato não pode ser feito", async () => {
+    const a = await cadastrar({ nome: "Ana Três", whatsapp: numero() });
+    const b = await cadastrar({ nome: "Bia Quatro", whatsapp: numero() });
+    expect(
+      erros(
+        await registrarContato(
+          banco.db,
+          { alunoIds: [a, b], lista: "vencido", feitoPor: adm.id },
+          HOJE,
+        ),
+      ),
+    ).toEqual({ _: "Esses alunos não têm o mesmo contato." });
+    const linhas = await banco.db
+      .select()
+      .from(contatos)
+      .where(eq(contatos.alunoId, a));
+    expect(linhas).toHaveLength(0);
+  });
+
+  it("não quer contato marca o grupo todo e bloqueia a pessoa uma vez só", async () => {
+    const { bruno, lia, carlaId } = await irmaos();
+    const { grupoId } = ok(
+      await registrarContato(
+        banco.db,
+        { alunoIds: [bruno, lia], lista: "vencido", feitoPor: adm.id },
+        HOJE,
+      ),
+    );
+    const outra = await criarAdministracao(banco.db);
+    ok(
+      await marcarResultado(banco.db, {
+        pessoaId: carlaId,
+        grupoIds: [grupoId],
+        resultado: "nao_quer_contato",
+        feitoPor: outra.id,
+      }),
+    );
+    const linhas = await banco.db
+      .select()
+      .from(contatos)
+      .where(eq(contatos.grupoId, grupoId));
+    for (const l of linhas) {
+      expect(l.resultado).toBe("nao_quer_contato");
+      expect(l.resultadoPor).toBe(outra.id);
+      expect(l.resultadoEm).toBeInstanceOf(Date);
+    }
+    const bloqueios = () =>
+      banco.db
+        .select()
+        .from(bloqueiosContato)
+        .where(eq(bloqueiosContato.pessoaId, carlaId));
+    expect(await bloqueios()).toHaveLength(1);
+    expect((await bloqueios())[0]).toMatchObject({
+      marcadoPor: outra.id,
+      desfeitoEm: null,
+    });
+
+    // De novo (pelo resultado ou pela ficha): nenhum bloqueio a mais.
+    ok(
+      await marcarResultado(banco.db, {
+        pessoaId: carlaId,
+        grupoIds: [grupoId],
+        resultado: "nao_quer_contato",
+        feitoPor: adm.id,
+      }),
+    );
+    ok(
+      await marcarNaoQuerContato(banco.db, {
+        pessoaId: carlaId,
+        feitoPor: adm.id,
+      }),
+    );
+    expect(await bloqueios()).toHaveLength(1);
+
+    ok(
+      await desfazerNaoQuerContato(banco.db, {
+        pessoaId: carlaId,
+        feitoPor: adm.id,
+      }),
+    );
+    const [desfeito] = await bloqueios();
+    expect(desfeito.desfeitoPor).toBe(adm.id);
+    expect(desfeito.desfeitoEm).toBeInstanceOf(Date);
+    const abertos = await banco.db
+      .select()
+      .from(bloqueiosContato)
+      .where(
+        and(
+          eq(bloqueiosContato.pessoaId, carlaId),
+          isNull(bloqueiosContato.desfeitoEm),
+        ),
+      );
+    expect(abertos).toHaveLength(0);
+
+    // Marcar de novo depois de desfeito abre outro bloqueio.
+    ok(
+      await marcarNaoQuerContato(banco.db, {
+        pessoaId: carlaId,
+        feitoPor: adm.id,
+      }),
+    );
+    expect(await bloqueios()).toHaveLength(2);
+  });
+
+  it("o resultado pode ser trocado e guarda o último", async () => {
+    const id = await cadastrar({ nome: "Troca Resultado", whatsapp: numero() });
+    await periodo(id, "2026-10-01", "2026-10-31");
+    const { grupoId } = ok(
+      await registrarContato(
+        banco.db,
+        { alunoIds: [id], lista: "vencido", feitoPor: adm.id },
+        HOJE,
+      ),
+    );
+    ok(
+      await marcarResultado(banco.db, {
+        pessoaId: id,
+        grupoIds: [grupoId],
+        resultado: "vai_pensar",
+        feitoPor: adm.id,
+      }),
+    );
+    ok(
+      await marcarResultado(banco.db, {
+        pessoaId: id,
+        grupoIds: [grupoId],
+        resultado: "vai_renovar",
+        feitoPor: adm.id,
+      }),
+    );
+    const [linha] = await banco.db
+      .select()
+      .from(contatos)
+      .where(eq(contatos.grupoId, grupoId));
+    expect(linha.resultado).toBe("vai_renovar");
+    const bloqueios = await banco.db
+      .select()
+      .from(bloqueiosContato)
+      .where(eq(bloqueiosContato.pessoaId, id));
+    expect(bloqueios).toHaveLength(0);
+  });
+
+  it("resultado fora da lista e grupo inexistente dão erro", async () => {
+    const id = await cadastrar({ nome: "Talvez Silva", whatsapp: numero() });
+    const { grupoId } = ok(
+      await registrarContato(
+        banco.db,
+        { alunoIds: [id], lista: "ficha", feitoPor: adm.id },
+        HOJE,
+      ),
+    );
+    expect(
+      erros(
+        await marcarResultado(banco.db, {
+          pessoaId: id,
+          grupoIds: [grupoId],
+          resultado: "talvez",
+          feitoPor: adm.id,
+        }),
+      ),
+    ).toEqual({ resultado: "Escolha um resultado da lista." });
+    for (const outros of [
+      [],
+      ["xyz"],
+      ["00000000-0000-4000-8000-000000000000"],
+      [grupoId, "00000000-0000-4000-8000-000000000000"],
+    ]) {
+      expect(
+        erros(
+          await marcarResultado(banco.db, {
+            pessoaId: id,
+            grupoIds: outros,
+            resultado: "vai_pensar",
+            feitoPor: adm.id,
+          }),
+        ),
+      ).toEqual({ _: "Contato não encontrado." });
+    }
+  });
+
+  it("marcar ou desfazer pessoa inexistente dá erro", async () => {
+    for (const pessoaId of ["xyz", "00000000-0000-4000-8000-000000000000"]) {
+      expect(
+        erros(
+          await marcarNaoQuerContato(banco.db, { pessoaId, feitoPor: adm.id }),
+        ),
+      ).toEqual({ _: "Pessoa não encontrada." });
+    }
+    expect(
+      erros(
+        await desfazerNaoQuerContato(banco.db, {
+          pessoaId: "xyz",
+          feitoPor: adm.id,
+        }),
+      ),
+    ).toEqual({ _: "Pessoa não encontrada." });
+  });
+
+  it("o resultado da linha vale para o último contato de cada aluno", async () => {
+    const { bruno, lia, carlaId } = await irmaos();
+    const juntos = ok(
+      await registrarContato(
+        banco.db,
+        { alunoIds: [bruno, lia], lista: "vencido", feitoPor: adm.id },
+        HOJE,
+      ),
+    ).grupoId;
+    // Depois, só o Bruno, pela ficha.
+    const soBruno = ok(
+      await registrarContato(
+        banco.db,
+        { alunoIds: [bruno], lista: "ficha", feitoPor: adm.id },
+        HOJE,
+      ),
+    ).grupoId;
+
+    const ultimos = await ultimosGruposDosAlunos(banco.db, [
+      { alunoId: bruno, pessoaId: carlaId },
+      { alunoId: lia, pessoaId: carlaId },
+    ]);
+    expect(ultimos.get(bruno)).toBe(soBruno);
+    expect(ultimos.get(lia)).toBe(juntos);
+
+    // A linha "Bruno e Lia" manda os dois grupos.
+    ok(
+      await marcarResultado(banco.db, {
+        pessoaId: carlaId,
+        grupoIds: [...new Set(ultimos.values())],
+        resultado: "vai_pensar",
+        feitoPor: adm.id,
+      }),
+    );
+    const linhas = await banco.db
+      .select()
+      .from(contatos)
+      .where(inArray(contatos.grupoId, [juntos, soBruno]));
+    expect(linhas).toHaveLength(3);
+    for (const l of linhas) expect(l.resultado).toBe("vai_pensar");
+  });
+
+  it("grupo inexistente na lista não muda nenhum contato", async () => {
+    const id = await cadastrar({ nome: "Nada Muda", whatsapp: numero() });
+    const { grupoId } = ok(
+      await registrarContato(
+        banco.db,
+        { alunoIds: [id], lista: "ficha", feitoPor: adm.id },
+        HOJE,
+      ),
+    );
+    erros(
+      await marcarResultado(banco.db, {
+        pessoaId: id,
+        grupoIds: [grupoId, "00000000-0000-4000-8000-000000000000"],
+        resultado: "vai_pensar",
+        feitoPor: adm.id,
+      }),
+    );
+    const [linha] = await banco.db
+      .select()
+      .from(contatos)
+      .where(eq(contatos.grupoId, grupoId));
+    expect(linha.resultado).toBeNull();
+  });
+
+  it("não quer contato marcado ao mesmo tempo barra o registro", async () => {
+    const id = await cadastrar({ nome: "Corrida Silva", whatsapp: numero() });
+    const pool = new Pool({ connectionString: banco.url });
+    const outra = await pool.connect();
+    try {
+      // Outra sessão trava a pessoa e abre o bloqueio, ainda sem confirmar.
+      await outra.query("begin");
+      await outra.query("select id from pessoas where id = $1 for update", [
+        id,
+      ]);
+      await outra.query(
+        "insert into bloqueios_contato (pessoa_id, marcado_por) values ($1, $2)",
+        [id, adm.id],
+      );
+      const registro = registrarContato(
+        banco.db,
+        { alunoIds: [id], lista: "ficha", feitoPor: adm.id },
+        HOJE,
+      );
+      await new Promise((r) => setTimeout(r, 300));
+      await outra.query("commit");
+      expect(erros(await registro)).toEqual({
+        _: "Esta pessoa pediu para não ser contatada.",
+      });
+      const linhas = await banco.db
+        .select()
+        .from(contatos)
+        .where(eq(contatos.alunoId, id));
+      expect(linhas).toHaveLength(0);
+    } finally {
+      outra.release();
+      await pool.end();
+    }
+  });
+
+  it("responsável trocado: a linha nova só usa e só bloqueia o contato novo", async () => {
+    const carla = numero();
+    const ana = await cadastrar({
+      nome: "Ana Troca",
+      nascimento: "2015-01-01",
+      responsavel: { novo: true, nome: "Carla Antiga", whatsapp: carla },
+    });
+    await periodo(ana, "2026-10-01", "2026-10-31");
+    const [{ responsavel_id: carlaId }] = (await banco.sql(
+      `select responsavel_id from responsabilidades where aluno_id = '${ana}'`,
+    )) as { responsavel_id: string }[];
+    const daCarla = ok(
+      await registrarContato(
+        banco.db,
+        { alunoIds: [ana], lista: "vencido", feitoPor: adm.id },
+        HOJE,
+      ),
+    ).grupoId;
+
+    // A responsável passa a ser Maria.
+    const [{ id: mariaId }] = (await banco.sql(
+      `insert into pessoas (nome, whatsapp) values ('Maria Nova', '${numero()}') returning id`,
+    )) as { id: string }[];
+    await banco.sql(
+      `update responsabilidades set responsavel_id = '${mariaId}' where aluno_id = '${ana}'`,
+    );
+    const linhaDaMaria = [{ alunoId: ana, pessoaId: mariaId }];
+    expect((await ultimosGruposDosAlunos(banco.db, linhaDaMaria)).size).toBe(0);
+    const daMaria = ok(
+      await registrarContato(
+        banco.db,
+        { alunoIds: [ana], lista: "vencido", feitoPor: adm.id },
+        HOJE,
+      ),
+    ).grupoId;
+    expect(
+      (await ultimosGruposDosAlunos(banco.db, linhaDaMaria)).get(ana),
+    ).toBe(daMaria);
+
+    // Lista adulterada (grupo de outra pessoa): recusada, nada muda.
+    for (const grupoIds of [[daCarla], [daMaria, daCarla]]) {
+      expect(
+        erros(
+          await marcarResultado(banco.db, {
+            pessoaId: mariaId,
+            grupoIds,
+            resultado: "nao_quer_contato",
+            feitoPor: adm.id,
+          }),
+        ),
+      ).toEqual({ _: "Contato não encontrado." });
+    }
+    const intactas = await banco.db
+      .select()
+      .from(contatos)
+      .where(eq(contatos.alunoId, ana));
+    for (const c of intactas) expect(c.resultado).toBeNull();
+
+    ok(
+      await marcarResultado(banco.db, {
+        pessoaId: mariaId,
+        grupoIds: [daMaria],
+        resultado: "nao_quer_contato",
+        feitoPor: adm.id,
+      }),
+    );
+    const bloqueados = await banco.db
+      .select({ pessoaId: bloqueiosContato.pessoaId })
+      .from(bloqueiosContato)
+      .where(inArray(bloqueiosContato.pessoaId, [carlaId, mariaId]));
+    expect(bloqueados.map((b) => b.pessoaId)).toEqual([mariaId]);
+  });
+});
+
+describe("contato recente de outra pessoa da equipe (R17)", () => {
+  const RECENTE =
+    "Outra pessoa da equipe já chamou este contato hoje. Confira antes de chamar de novo.";
+  let outra: Awaited<ReturnType<typeof criarAdministracao>>;
+  const hoje = hojeEmSaoPaulo();
+
+  beforeAll(async () => {
+    outra = await criarAdministracao(banco.db);
+  });
+
+  async function vencida(nome: string) {
+    const id = await cadastrar({ nome, whatsapp: numero() }, hoje);
+    await periodo(id, "2026-01-01", "2026-01-31");
+    return id;
+  }
+
+  const chamar = (
+    alunoId: string,
+    feitoPor: string,
+    extra: {
+      visto?: string | null;
+      confirmar?: boolean;
+      lista?: "vencido" | "ficha";
+    } = {},
+  ) =>
+    registrarContato(
+      banco.db,
+      {
+        alunoIds: [alunoId],
+        lista: extra.lista ?? "vencido",
+        feitoPor,
+        visto: extra.visto ?? null,
+        confirmar: extra.confirmar ?? false,
+      },
+      hoje,
+    );
+
+  const quantos = async (alunoId: string) =>
+    (
+      await banco.db
+        .select()
+        .from(contatos)
+        .where(eq(contatos.alunoId, alunoId))
+    ).length;
+
+  it("recusa quando outra pessoa chamou hoje depois do que a tela mostrou, sem gravar", async () => {
+    const ana = await vencida("Ana Recente");
+    ok(await chamar(ana, outra.id));
+    expect(erros(await chamar(ana, adm.id))).toEqual({ _: RECENTE });
+    expect(await quantos(ana)).toBe(1);
+  });
+
+  it("vale também na ficha", async () => {
+    const ana = await vencida("Ana Ficha");
+    ok(await chamar(ana, outra.id));
+    expect(erros(await chamar(ana, adm.id, { lista: "ficha" }))).toEqual({
+      _: RECENTE,
+    });
+  });
+
+  it("passa se a tela já mostrava esse contato (visto)", async () => {
+    const ana = await vencida("Ana Vista");
+    const { grupoId } = ok(await chamar(ana, outra.id));
+    ok(await chamar(ana, adm.id, { visto: grupoId }));
+    expect(await quantos(ana)).toBe(2);
+  });
+
+  it("recusa se depois do visto houve outro contato da outra pessoa", async () => {
+    const ana = await vencida("Ana Dupla");
+    const primeiro = ok(await chamar(ana, outra.id));
+    ok(await chamar(ana, outra.id, { visto: primeiro.grupoId }));
+    expect(
+      erros(await chamar(ana, adm.id, { visto: primeiro.grupoId })),
+    ).toEqual({ _: RECENTE });
+  });
+
+  it("visto de outra pessoa de contato não libera", async () => {
+    const ana = await vencida("Ana Alheia");
+    const bia = await vencida("Bia Alheia");
+    ok(await chamar(ana, outra.id));
+    const deBia = ok(await chamar(bia, adm.id));
+    expect(erros(await chamar(ana, adm.id, { visto: deBia.grupoId }))).toEqual({
+      _: RECENTE,
+    });
+  });
+
+  it("chamar mesmo assim (confirmar) grava", async () => {
+    const ana = await vencida("Ana Confirma");
+    ok(await chamar(ana, outra.id));
+    ok(await chamar(ana, adm.id, { confirmar: true }));
+    expect(await quantos(ana)).toBe(2);
+  });
+
+  it("contato da própria pessoa ou de outro dia não pede confirmação", async () => {
+    const ana = await vencida("Ana Mesma");
+    ok(await chamar(ana, adm.id));
+    ok(await chamar(ana, adm.id));
+    const bia = await vencida("Bia Ontem");
+    const { grupoId } = ok(await chamar(bia, outra.id));
+    await banco.sql(
+      `update contatos set criado_em = criado_em - interval '2 days' where grupo_id = '${grupoId}'`,
+    );
+    ok(await chamar(bia, adm.id));
+  });
+});
+
+it("desfazer não quer contato espera a trava da pessoa (R18)", async () => {
+  const ana = await cadastrar({ nome: "Ana Trava", whatsapp: numero() });
+  ok(await marcarNaoQuerContato(banco.db, { pessoaId: ana, feitoPor: adm.id }));
+  const pool = new Pool({ connectionString: banco.url });
+  const cliente = await pool.connect();
+  try {
+    await cliente.query("begin");
+    await cliente.query("select id from pessoas where id = $1 for update", [
+      ana,
+    ]);
+    let terminou = false;
+    const desfazendo = desfazerNaoQuerContato(banco.db, {
+      pessoaId: ana,
+      feitoPor: adm.id,
+    }).then((r) => {
+      terminou = true;
+      return r;
+    });
+    await new Promise((r) => setTimeout(r, 300));
+    expect(terminou).toBe(false);
+    await cliente.query("commit");
+    ok(await desfazendo);
+    const abertos = await banco.db
+      .select()
+      .from(bloqueiosContato)
+      .where(
+        and(
+          eq(bloqueiosContato.pessoaId, ana),
+          isNull(bloqueiosContato.desfeitoEm),
+        ),
+      );
+    expect(abertos).toHaveLength(0);
+  } finally {
+    cliente.release();
+    await pool.end();
+  }
+});

@@ -16,8 +16,13 @@ afterAll(async () => {
   await banco.encerrar();
 });
 beforeEach(async () => {
+  // O cascade alcança o livro imutável de ajustes (gatilho de TRUNCATE); como
+  // ele está vazio aqui, a limpeza roda sem gatilhos.
   await banco.sql(
-    "truncate table eventos, turma_dias, turmas, ritmos, modulos, imagens cascade",
+    `begin;
+     set local session_replication_role = replica;
+     truncate table eventos, turma_dias, turmas, ritmos, modulos, imagens cascade;
+     commit;`,
   );
 });
 

@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { urlAlunos } from "@/servidor/alunos/listas";
+import { contarMatriculasAbertas } from "@/servidor/alunos/matriculas";
 import { exigirAdministracao } from "@/servidor/auth/acesso";
 import { obterBanco } from "@/servidor/banco/cliente";
 import { listarTurmas, opcoesDeTurma } from "@/servidor/cadastros/turmas";
@@ -10,10 +12,17 @@ export const dynamic = "force-dynamic";
 const BOTAO =
   "inline-flex min-h-12 w-full items-center justify-center rounded-sm bg-acao px-6 font-semibold text-fundo hover:bg-acao-escura md:w-auto";
 
+function textoDosAlunos(n: number): string {
+  return `${n} ${n === 1 ? "aluno" : "alunos"}`;
+}
+
 export default async function Turmas() {
   await exigirAdministracao();
   const banco = obterBanco();
-  const lista = await listarTurmas(banco);
+  const [lista, alunosPorTurma] = await Promise.all([
+    listarTurmas(banco),
+    contarMatriculasAbertas(banco),
+  ]);
   const faltando =
     lista.length === 0 ? cadastrosFaltando(await opcoesDeTurma(banco)) : [];
   return (
@@ -68,6 +77,19 @@ export default async function Turmas() {
               <p className="text-pequeno text-texto-suave md:w-56">
                 {formatarDias(t.dias)} ·{" "}
                 {formatarHorario(t.horarioInicio, t.horarioFim)}
+              </p>
+              <p className="text-pequeno md:w-24">
+                {(alunosPorTurma.get(t.id) ?? 0) === 0 ? (
+                  <span className="text-texto-suave">0 alunos</span>
+                ) : (
+                  <Link
+                    href={urlAlunos({ turma: t.id })}
+                    aria-label={`Ver os alunos de ${t.ritmo}, ${t.modulo}`}
+                    className="-mx-2 inline-flex min-h-12 items-center px-2 text-link underline decoration-link underline-offset-4"
+                  >
+                    {textoDosAlunos(alunosPorTurma.get(t.id) ?? 0)}
+                  </Link>
+                )}
               </p>
               <p className="text-pequeno text-texto-suave md:w-28">
                 <span className={t.ativa ? "" : "font-semibold text-texto"}>

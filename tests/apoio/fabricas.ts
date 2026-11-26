@@ -1,10 +1,15 @@
 import { randomUUID } from "node:crypto";
+import type { DataIso } from "@/servidor/alunos/datas";
 import type { Banco } from "@/servidor/banco/cliente";
 import {
   eventos,
+  matriculas,
   modulos,
+  periodosContratados,
   pessoaPapeis,
   pessoas,
+  planos,
+  responsabilidades,
   ritmos,
   turmaDias,
   turmas,
@@ -103,4 +108,105 @@ export async function criarEvento(
     })
     .returning();
   return evento;
+}
+
+/** Pessoa com o papel `administracao` (ativo). */
+export async function criarAdministracao(db: Banco) {
+  const [pessoa] = await db
+    .insert(pessoas)
+    .values({
+      nome: `Administração ${sufixo()}`,
+      email: `adm-${randomUUID()}@exemplo.dev`,
+    })
+    .returning();
+  await db
+    .insert(pessoaPapeis)
+    .values({ pessoaId: pessoa.id, papel: "administracao", ativo: true });
+  return pessoa;
+}
+
+function whatsappAleatorio() {
+  const digitos = Array.from({ length: 9 }, () =>
+    Math.floor(Math.random() * 10),
+  ).join("");
+  return `+5511${digitos}`;
+}
+
+/**
+ * Pessoa com o papel `aluno` (ativo), adulta por padrão e com WhatsApp
+ * aleatório. Com `responsavelId`, liga o responsável ao aluno.
+ */
+export async function criarAluno(
+  db: Banco,
+  parcial: Partial<typeof pessoas.$inferInsert> & {
+    nascimento?: DataIso;
+    responsavelId?: string;
+  } = {},
+) {
+  const { nascimento, responsavelId, ...valores } = parcial;
+  const [aluno] = await db
+    .insert(pessoas)
+    .values({
+      nome: `Aluno ${sufixo()}`,
+      whatsapp: whatsappAleatorio(),
+      dataNascimento: nascimento ?? "1990-01-01",
+      ...valores,
+    })
+    .returning();
+  await db
+    .insert(pessoaPapeis)
+    .values({ pessoaId: aluno.id, papel: "aluno", ativo: true });
+  if (responsavelId) {
+    await db
+      .insert(responsabilidades)
+      .values({ responsavelId, alunoId: aluno.id });
+  }
+  return aluno;
+}
+
+/** Plano "Mensal" (1 mês), com nome único salvo indicação em contrário. */
+export async function criarPlano(
+  db: Banco,
+  parcial: Partial<typeof planos.$inferInsert> = {},
+) {
+  const [plano] = await db
+    .insert(planos)
+    .values({
+      nome: `Mensal ${sufixo()}`,
+      duracaoQuantidade: 1,
+      duracaoUnidade: "meses",
+      ...parcial,
+    })
+    .returning();
+  return plano;
+}
+
+export async function criarPeriodo(
+  db: Banco,
+  valores: {
+    alunoId: string;
+    inicio: DataIso;
+    fim: DataIso;
+    criadoPor: string;
+    planoId?: string;
+  },
+) {
+  const [periodo] = await db
+    .insert(periodosContratados)
+    .values(valores)
+    .returning();
+  return periodo;
+}
+
+export async function criarMatricula(
+  db: Banco,
+  valores: {
+    alunoId: string;
+    turmaId: string;
+    entrada: DataIso;
+    criadoPor: string;
+  },
+) {
+  const [matricula] = await db.insert(matriculas).values(valores).returning();
+  return matricula;
 }

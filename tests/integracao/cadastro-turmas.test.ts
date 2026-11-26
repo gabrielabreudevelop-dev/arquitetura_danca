@@ -309,7 +309,7 @@ it("recusa excluir turma com matrícula e exclui a turma sem matrícula", async 
     .returning();
   await banco.db
     .insert(matriculas)
-    .values({ alunoId: aluno.id, turmaId: turma.id });
+    .values({ alunoId: aluno.id, turmaId: turma.id, entrada: "2026-01-01" });
   expect(await excluirTurma(banco.db, turma.id)).toEqual({
     ok: false,
     erros: { _: "Está em uso; desative em vez de excluir." },

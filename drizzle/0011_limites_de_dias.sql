@@ -1,0 +1,2 @@
+ALTER TABLE "ajustes_periodo" ADD CONSTRAINT "ajustes_periodo_dias_limite" CHECK (abs("ajustes_periodo"."dias") <= 36500);--> statement-breakpoint
+ALTER TABLE "transferencias" ADD CONSTRAINT "transferencias_dias_limite" CHECK ("transferencias"."dias" <= 36500);

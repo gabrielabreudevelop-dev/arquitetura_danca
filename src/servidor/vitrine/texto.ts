@@ -54,14 +54,15 @@ function horaCurta(hora: number, minuto: number): string {
     : `${hora}h${String(minuto).padStart(2, "0")}`;
 }
 
-function horaDoTexto(valor: string): string {
+/** Ex.: "19:00:00" -> "19h"; "20:30" -> "20h30". */
+export function formatarHora(valor: string): string {
   const [h = "0", m = "0"] = valor.split(":");
   return horaCurta(Number(h), Number(m));
 }
 
 /** Ex.: ("19:00:00", "20:30:00") -> "19h–20h30". */
 export function formatarHorario(inicio: string, fim: string): string {
-  return `${horaDoTexto(inicio)}–${horaDoTexto(fim)}`;
+  return `${formatarHora(inicio)}–${formatarHora(fim)}`;
 }
 
 type Partes = {
