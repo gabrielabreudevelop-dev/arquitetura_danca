@@ -1,11 +1,13 @@
 import Link from "next/link";
+import { numerosDeBolsistas } from "@/app/painel/dash/bolsistas";
 import { lerVisaoDoDash } from "@/app/painel/dash/endereco";
-import { NumerosDoDash } from "@/app/painel/dash/numeros";
+import { NumerosDeBolsistas, NumerosDoDash } from "@/app/painel/dash/numeros";
 import { carregarAlunos } from "@/servidor/alunos/carga";
 import { hojeEmSaoPaulo } from "@/servidor/alunos/datas";
 import { contarDash } from "@/servidor/alunos/listas";
 import { exigirPapel } from "@/servidor/auth/acesso";
 import { obterBanco } from "@/servidor/banco/cliente";
+import { carregarBolsistas } from "@/servidor/bolsistas/carga";
 import { listarPlanos } from "@/servidor/configuracoes/planos";
 
 export const dynamic = "force-dynamic";
@@ -46,10 +48,12 @@ export default async function Painel({
   const visao = lerVisaoDoDash(await searchParams);
   const hoje = hojeEmSaoPaulo();
   const db = obterBanco();
-  const [alunos, planos] = await Promise.all([
+  const [alunos, planos, bolsistas] = await Promise.all([
     carregarAlunos(db, hoje),
     listarPlanos(db),
+    carregarBolsistas(db, hoje),
   ]);
+  const numerosDosBolsistas = numerosDeBolsistas(bolsistas);
   const dash = contarDash(alunos, hoje, visao.janela, new Date());
 
   return (
@@ -123,6 +127,10 @@ export default async function Painel({
         </section>
       ) : (
         <NumerosDoDash dash={dash} visao={visao} />
+      )}
+
+      {bolsistas.length > 0 && (
+        <NumerosDeBolsistas numeros={numerosDosBolsistas} />
       )}
     </main>
   );

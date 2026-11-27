@@ -11,6 +11,7 @@ import {
 import {
   type ListaContato,
   RESULTADOS_ALUNO,
+  type ResultadoContato,
 } from "@/servidor/contatos/valores";
 import { ESTADO_INICIAL } from "../_formulario/estado";
 import { MensagemErroGeral } from "../_formulario/mensagem";
@@ -146,6 +147,7 @@ export function FormularioResultado({
   grupoIds,
   atual,
   nome,
+  resultados = RESULTADOS_ALUNO,
 }: {
   /** Pessoa de contato da linha (todos os grupos são dela). */
   pessoaId: string;
@@ -154,6 +156,8 @@ export function FormularioResultado({
   atual: string | null;
   /** Quem recebeu, para o rótulo do campo ("Resultado do contato com Ana Souza"). */
   nome: string;
+  /** Resultados do seletor, na ordem: os de aluno ou os de bolsista. */
+  resultados?: readonly ResultadoContato[];
 }) {
   const [estado, acao] = useActionState(marcarResultadoAcao, ESTADO_INICIAL);
   const versao = useVersao(estado);
@@ -180,7 +184,7 @@ export function FormularioResultado({
           <option value="" disabled>
             Escolha…
           </option>
-          {RESULTADOS_ALUNO.map((r) => (
+          {resultados.map((r) => (
             <option key={r} value={r}>
               {textoDoResultado(r)}
             </option>

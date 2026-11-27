@@ -408,6 +408,45 @@ describe("lerFiltrosContatos e urlContatos", () => {
   });
 });
 
+describe("aba bolsista_ausente em lerFiltrosContatos e urlContatos", () => {
+  it("a aba usa a janela padrão de 15 dias e a omite do endereço", () => {
+    expect(lerFiltrosContatos({ lista: "bolsista_ausente" })).toEqual({
+      lista: "bolsista_ausente",
+      janela: 15,
+      todos: false,
+      semContato: false,
+    });
+    expect(urlContatos({ lista: "bolsista_ausente" })).toBe(
+      "/painel/contatos?lista=bolsista_ausente",
+    );
+    expect(urlContatos({ lista: "bolsista_ausente", janela: 15 })).toBe(
+      "/painel/contatos?lista=bolsista_ausente",
+    );
+  });
+
+  it("janela 7 e 30 ficam no endereço; inválida volta a 15", () => {
+    expect(urlContatos({ lista: "bolsista_ausente", janela: 7 })).toBe(
+      "/painel/contatos?lista=bolsista_ausente&janela=7",
+    );
+    const f = lerFiltrosContatos(
+      parametros("/painel/contatos?lista=bolsista_ausente&janela=30"),
+    );
+    expect(f.janela).toBe(30);
+    expect(urlContatos(f)).toBe(
+      "/painel/contatos?lista=bolsista_ausente&janela=30",
+    );
+    expect(
+      lerFiltrosContatos({ lista: "bolsista_ausente", janela: "9" }).janela,
+    ).toBe(15);
+  });
+
+  it("as abas de aluno seguem com 7 dias por padrão", () => {
+    expect(urlContatos({ lista: "vence_em_breve", janela: 15 })).toBe(
+      "/painel/contatos?janela=15",
+    );
+  });
+});
+
 describe("linhasDeContato", () => {
   const vencidos = {
     lista: "vencido",

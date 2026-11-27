@@ -5,7 +5,7 @@
  * mostra mensagens fixas desta tabela, nunca texto vindo do endereço.
  */
 import { MENSAGEM_ENCERRADO } from "../alunos/cadastro";
-import { JANELAS, lerFiltrosContatos, urlContatos } from "../alunos/listas";
+import { lerFiltrosContatos, urlContatos } from "../alunos/listas";
 import { ehUuid } from "../cadastros/comum";
 import type { Resultado } from "../cadastros/resultado";
 import {
@@ -112,18 +112,6 @@ function voltarComErro(codigo: CodigoErroAbrir): RespostaAbrir {
 }
 
 /**
- * Aba de bolsistas de `/painel/contatos`, com a janela recebida (só se for
- * uma das conhecidas). Montada aqui porque `urlContatos` ainda não conhece a
- * aba; a Tarefa 11 a integra.
- */
-function urlAbaBolsistas(form: FormData): string {
-  const busca = new URLSearchParams({ lista: "bolsista_ausente" });
-  const janela = JANELAS.find((j) => String(j) === form.get("janela"));
-  if (janela) busca.set("janela", String(janela));
-  return `/painel/contatos?${busca.toString()}`;
-}
-
-/**
  * Erro de um contato de bolsista: volta para a ficha do bolsista (`ficha_bolsista`)
  * ou para a aba de bolsistas (`bolsista_ausente`). O contato recente marca a
  * linha do bolsista na aba para a tela mostrar "Chamar mesmo assim".
@@ -139,11 +127,15 @@ function voltarDeBolsista(
       location: `/painel/bolsistas/${pedido.alunoIds[0]}?erro=${codigo}`,
     };
   }
+  const janela = form.get("janela");
+  const aba = urlContatos(
+    lerFiltrosContatos({
+      lista: "bolsista_ausente",
+      janela: typeof janela === "string" ? janela : undefined,
+    }),
+  );
   const marca = codigo === "recente" ? `&aluno=${pedido.alunoIds[0]}` : "";
-  return {
-    status: 303,
-    location: `${urlAbaBolsistas(form)}&erro=${codigo}${marca}`,
-  };
+  return { status: 303, location: `${aba}&erro=${codigo}${marca}` };
 }
 
 /**
