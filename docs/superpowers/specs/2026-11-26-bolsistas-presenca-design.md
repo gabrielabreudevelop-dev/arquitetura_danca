@@ -169,17 +169,20 @@ Vieram sem estar no acordo
 
 ## 10. Pronto quando
 
-Verificável localmente e na CI:
-- [ ] A administração cadastra, edita, ativa e inativa bolsistas (com responsável para menor), muda os dias combinados com histórico e a preferência (testado).
-- [ ] A chamada lista os combinados certos para cada aula pelo acordo vigente na data, aceita acrescentar outros, salva marcando e desmarcando com histórico, recusa data futura e dia sem aula da turma, e "não houve aula" funciona como descrito (testado, inclusive duas pessoas salvando ao mesmo tempo).
-- [ ] A frequência e a lista "sem vir" seguem a seção 7, incluindo feriado (`nao_houve`), dia sem chamada, mudança de acordo no meio do mês e período inativo (testes de unidade e de integração; "hoje" em São Paulo, também com o processo em outro fuso).
-- [ ] Contatos de bolsistas funcionam como os do M2 (registro, resultado, "não quer contato", aviso concorrente, mensagem com `{nome}` e `{dias}`) (testado).
-- [ ] Dash: os números de bolsistas batem com as listas que abrem (testado).
-- [ ] Toda action e página nova passa pelos testes estáticos de acesso; uma pessoa só atendente não acessa nada deste marco (testado).
-- [ ] Telas verificadas em 375, 768 e 1280 px, com estados vazio, erro e enviando.
-- [ ] CI verde.
+Verificável localmente e na CI. Verificado em 2026-11-27 (branch `bolsistas-presenca`) com `pnpm lint`, `pnpm tipos`, `pnpm teste`, `pnpm teste:fuso`, `pnpm teste:integracao` e `pnpm build` verdes e com as telas percorridas num banco de exemplo em 375, 768 e 1280 px; o item "CI verde" fica para o push da branch.
 
-Pendente em produção (dono): cadastrar os bolsistas reais e os dias combinados; fazer a primeira chamada.
+- [x] A administração cadastra, edita, ativa e inativa bolsistas (com responsável para menor), muda os dias combinados com histórico e a preferência (testado).
+- [x] A chamada lista os combinados certos para cada aula pelo acordo vigente na data, aceita acrescentar outros, salva marcando e desmarcando com histórico, recusa data futura e dia sem aula da turma, e "não houve aula" funciona como descrito (testado, inclusive duas pessoas salvando ao mesmo tempo).
+- [x] A frequência e a lista "sem vir" seguem a seção 7, incluindo feriado (`nao_houve`), dia sem chamada, mudança de acordo no meio do mês e período inativo (testes de unidade e de integração; "hoje" em São Paulo, também com o processo em outro fuso).
+- [x] Contatos de bolsistas funcionam como os do M2 (registro, resultado, "não quer contato", aviso concorrente, mensagem com `{nome}` e `{dias}`) (testado).
+- [x] Dash: os números de bolsistas batem com as listas que abrem (testado).
+- [x] Toda action e página nova passa pelos testes estáticos de acesso; uma pessoa só atendente não acessa nada deste marco (testado).
+- [x] Telas verificadas em 375, 768 e 1280 px, com estados vazio, erro e enviando.
+- [ ] CI verde (confirmar no push da branch).
+
+Pendente em produção (dono, continua pendente): cadastrar os bolsistas reais e os dias combinados; fazer a primeira chamada.
+
+Mudança durante a construção: só um dia em que a chamada foi **salva** conta como "dia com chamada" (aulas ganharam `chamada_salva_em` e `chamada_salva_por`, migração 0013), para que marcar e desfazer "não houve aula" não vire falta.
 
 ## 11. Decisões em aberto (com a dona do estúdio)
 - Se há mínimo de presenças para manter a bolsa (hoje: nenhuma regra automática).

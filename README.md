@@ -1,6 +1,6 @@
 # Arquitetura da Dança
 
-Plataforma web responsiva, pensada primeiro para o celular, do estúdio de dança: alunos matriculados reveem em vídeo os passos ensinados pelos professores (por ritmo e módulo), acompanham eventos e participam da comunidade. A grade de horários e a divulgação de eventos ficam abertas ao público. A equipe gerencia alunos, turmas, períodos contratados e consentimentos de contato num painel, que substitui a planilha atual. O M0 entrega a base (banco, autenticação da equipe, painel inicial, backups e operação em produção), o M1 a vitrine pública e o M2 o painel de alunos e períodos.
+Plataforma web responsiva, pensada primeiro para o celular, do estúdio de dança: alunos matriculados reveem em vídeo os passos ensinados pelos professores (por ritmo e módulo), acompanham eventos e participam da comunidade. A grade de horários e a divulgação de eventos ficam abertas ao público. A equipe gerencia alunos, turmas, períodos contratados e consentimentos de contato num painel, que substitui a planilha atual. O M0 entrega a base (banco, autenticação da equipe, painel inicial, backups e operação em produção), o M1 a vitrine pública, o M2 o painel de alunos e períodos e o marco "Bolsistas e presença" o cadastro de bolsistas, a chamada das aulas e a lista de quem não está vindo.
 
 ## Requisitos
 
@@ -51,7 +51,7 @@ Em produção, as migrações rodam sozinhas quando o contêiner inicia (`script
 ## Estrutura
 
 - `src/app/`: telas e rotas do Next.js (`entrar`, `painel`, `sem-acesso`, `api`, e a vitrine pública: `(publico)`, `capas`, `og`).
-- `src/servidor/`: código de servidor (`banco`, `auth`, `equipe`, `pessoas`, `alunos`, `contatos`, `configuracoes`, `cadastros`, `vitrine`, ambiente e saúde).
+- `src/servidor/`: código de servidor (`banco`, `auth`, `equipe`, `pessoas`, `alunos`, `bolsistas`, `contatos`, `configuracoes`, `cadastros`, `vitrine`, ambiente e saúde).
 - `drizzle/`: migrações SQL. `scripts/`: migração, criação da equipe, verificação de restauração.
 - `tests/`: apoio e testes de integração. `docs/`: design e operação.
 
@@ -129,6 +129,37 @@ O M2 dá à administração o painel que substitui a planilha: alunos, turmas, p
 **Para o M4: "não quer contato"**
 
 A marca "não quer contato" (resultado de um contato, guardada na pessoa) precisa ser considerada na ativação dos alunos junto com os consentimentos (opt-ins): não pré-marcar nenhum consentimento, como já previsto, e avisar a equipe se a pessoa der opt-in depois de ter pedido para não ser contatada.
+
+## Bolsistas e presença
+
+Marco combinado entre o M2 e o M3 (`docs/superpowers/specs/2026-11-26-bolsistas-presenca-design.md`). Bolsistas são pessoas que frequentam as aulas sem pagar, para aumentar a turma e ajudar a formar pares. A administração cadastra cada bolsista, combina os dias da semana em que ele vem, faz a chamada das aulas no painel e chama no WhatsApp quem não está vindo. Só a administração usa este marco; a atendente cai em `/sem-acesso` em todas as rotas abaixo. O bolsista não tem login nem QR code, e nenhum dado de bolsista aparece em página pública.
+
+**Rotas do painel (só administração)**
+
+- `/painel/bolsistas`: ativos por dia combinado e "sem vir" (7, 15 ou 30 dias, padrão 15; o número abre a aba de contatos), com busca por nome e filtro ativos/inativos. Cada linha mostra dias, preferência no par e a frequência do mês ("nov: 5 de 8 · +1 fora"). `/novo` cadastra.
+- `/painel/bolsistas/[id]`: ficha com preferência, dias combinados (e os anteriores), frequência por mês, presenças recentes, contatos e histórico ("Ativado desde…", mudanças de dias, inativações). Ações em páginas próprias: `/editar`, `/dias` (alterar dias) e `/situacao` (inativar ou reativar).
+- `/painel/chamada?data=AAAA-MM-DD`: escolha do dia (padrão hoje) com as turmas ativas daquele dia da semana e a situação de cada aula. `/painel/chamada/[turmaId]?data=AAAA-MM-DD` é a chamada de uma aula.
+- `/painel/contatos?lista=bolsista_ausente&janela=7|15|30`: aba "Bolsistas sem vir", com os mesmos componentes dos contatos do M2.
+- `/painel/configuracoes`: a mensagem pronta "Bolsista sem vir" (campos `{nome}` e `{dias}`; a de bolsista não aceita `{fim}` nem `{turma}`).
+- `/painel` (início): mais dois números, "Bolsistas ativos" (abre a lista de bolsistas) e "Bolsistas sem vir há 15 dias" (abre a aba de contatos). Cada número é igual à lista que abre.
+
+**Como usar**
+
+1. **Cadastrar:** em Bolsistas, "Novo bolsista": nome, nascimento, WhatsApp, e-mail e Instagram opcionais, dias combinados (ao menos um) e preferência no par (os dois, prefere conduzir ou prefere ser conduzido). Para menor de 18 anos, informe o responsável (as mensagens vão para ele; irmãos com o mesmo responsável viram uma linha só nos contatos). Quem já está cadastrado (por e-mail), por exemplo um aluno, vira bolsista pelo botão "Tornar bolsista", sem duplicar o cadastro.
+2. **Combinar dias:** na ficha, "Alterar dias" cria uma versão nova do acordo, vigente desde a data escolhida (hoje por padrão; pode ser no passado para corrigir, nunca no futuro). As versões antigas ficam e a frequência de cada data usa o acordo que valia nela. "Inativar" e "Reativar" têm data e motivo opcional; inativo sai da chamada e da lista de contato, mas as presenças e o histórico ficam.
+3. **Fazer a chamada:** em Chamada, escolha o dia e a turma. Aparecem primeiro os bolsistas combinados para aquele dia da semana (acordo vigente na data); quem veio sem estar no acordo entra por "Adicionar bolsista". O topo mostra "Vieram N · conduzir X · ser conduzido Y · os dois Z". "Salvar chamada" marca e desmarca de uma vez; se outra pessoa salvou antes, a tela avisa e mostra a chamada atual. Chamada vazia pede confirmação. "Não houve aula" (com motivo, só sem presenças) tira o dia da frequência de todos e pode ser desfeito. Dá para fazer ou corrigir a chamada de qualquer dia passado; nunca de data futura nem de dia em que a turma não tem aula.
+4. **Usar a lista de contato:** em Contatos > "Bolsistas sem vir", escolha 7, 15 ou 30 dias. Aparece quem está ativo, teve ao menos um dia combinado com chamada no período e não veio a nenhum dia dele; ficam de fora inativos e quem pediu para não ser contatado. Toque em "WhatsApp" (o contato é registrado ao tocar) e depois marque o resultado: vai voltar, vai pensar, não respondeu, não volta (aparece o atalho "Inativar bolsista", que a equipe decide usar) ou não quer contato. Quem foi chamado hoje por outra pessoa gera um aviso antes de chamar de novo.
+
+**Regra de "dia com chamada"**
+
+Só conta como dia combinado o dia em que a chamada de alguma aula foi **salva** (aula `realizada` com `chamada_salva_em` preenchida, migração 0013). Feriado marcado "não houve aula", "não houve aula" desfeito e dia em que ninguém fez a chamada não viram falta. A mesma função calcula a frequência da ficha, da lista e do início e a lista "sem vir"; só vale o tempo em que o bolsista estava ativo. Dia combinado = data até hoje (São Paulo) cujo dia da semana está no acordo vigente nela. Presença em dia fora do acordo aparece à parte ("+1 fora").
+
+**Pendente em produção (dono do projeto)**
+
+- [ ] Cadastrar os bolsistas reais e os dias combinados de cada um.
+- [ ] Conferir a mensagem pronta "Bolsista sem vir" em Configurações e ajustar o texto.
+- [ ] Fazer a primeira chamada de verdade e conferir a frequência na ficha.
+- [ ] Combinar com a dona do estúdio se há mínimo de presenças para manter a bolsa (hoje não há regra automática).
 
 ## Fechamento do M0 em produção
 
