@@ -10,7 +10,7 @@ import { salvarMensagemAcao } from "../acoes";
 type Mensagem = {
   id: string;
   nome: string;
-  finalidade: "renovacao" | "retorno";
+  finalidade: "renovacao" | "retorno" | "bolsista";
   texto: string;
   ativa: boolean;
 };

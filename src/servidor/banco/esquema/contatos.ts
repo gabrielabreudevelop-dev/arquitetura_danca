@@ -15,6 +15,8 @@ export const listaContato = pgEnum("lista_contato", [
   "vence_em_breve",
   "vencido",
   "ficha",
+  "bolsista_ausente",
+  "ficha_bolsista",
 ]);
 export const resultadoContato = pgEnum("resultado_contato", [
   "vai_renovar",
@@ -22,10 +24,12 @@ export const resultadoContato = pgEnum("resultado_contato", [
   "nao_respondeu",
   "nao_volta",
   "nao_quer_contato",
+  "vai_voltar",
 ]);
 export const finalidadeMensagem = pgEnum("finalidade_mensagem", [
   "renovacao",
   "retorno",
+  "bolsista",
 ]);
 
 export const mensagensProntas = pgTable(

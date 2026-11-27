@@ -208,6 +208,7 @@ it("devolve as sementes como mensagens ativas", async () => {
   expect(retorno?.texto).toContain("Sentimos falta de {aluno}");
   const lista = await listarMensagens(banco.db);
   expect(lista.map((m) => m.nome).sort()).toEqual([
+    "Bolsista sem vir",
     "Convite para voltar",
     "Renovação",
   ]);

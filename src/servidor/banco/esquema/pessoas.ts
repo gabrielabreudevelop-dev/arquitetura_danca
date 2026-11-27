@@ -20,6 +20,7 @@ export const papel = pgEnum("papel", [
   "professor",
   "aluno",
   "responsavel",
+  "bolsista",
 ]);
 
 export type Papel = (typeof papel.enumValues)[number];

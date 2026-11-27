@@ -2,6 +2,9 @@ import { randomUUID } from "node:crypto";
 import type { DataIso } from "@/servidor/alunos/datas";
 import type { Banco } from "@/servidor/banco/cliente";
 import {
+  acordosBolsista,
+  aulas,
+  bolsistas,
   eventos,
   matriculas,
   modulos,
@@ -9,8 +12,10 @@ import {
   pessoaPapeis,
   pessoas,
   planos,
+  presencasAula,
   responsabilidades,
   ritmos,
+  situacoesBolsista,
   turmaDias,
   turmas,
 } from "@/servidor/banco/esquema";
@@ -209,4 +214,69 @@ export async function criarMatricula(
 ) {
   const [matricula] = await db.insert(matriculas).values(valores).returning();
   return matricula;
+}
+
+/**
+ * Bolsista: pessoa com papel `aluno` ativo, ficha em `bolsistas`, ativação em
+ * `desde` e acordo de dias vigente desde `desde` (padrão: terças, 2026-11-01).
+ */
+export async function criarBolsista(
+  db: Banco,
+  valores: {
+    criadoPor: string;
+    dias?: number[];
+    desde?: DataIso;
+    preferencia?: (typeof bolsistas.$inferInsert)["preferencia"];
+    nascimento?: DataIso;
+  },
+) {
+  const { criadoPor, dias = [2], desde = "2026-11-01", preferencia } = valores;
+  const pessoa = await criarAluno(db, { nascimento: valores.nascimento });
+  await db.insert(bolsistas).values({ pessoaId: pessoa.id, preferencia });
+  await db.insert(situacoesBolsista).values({
+    pessoaId: pessoa.id,
+    tipo: "ativacao",
+    data: desde,
+    criadoPor,
+  });
+  await db.insert(acordosBolsista).values({
+    pessoaId: pessoa.id,
+    dias,
+    vigenteDesde: desde,
+    criadoPor,
+  });
+  return pessoa;
+}
+
+/** Aula de uma turma numa data (realizada, salvo indicação em contrário). */
+export async function criarAula(
+  db: Banco,
+  valores: {
+    turmaId: string;
+    data: DataIso;
+    situacao?: (typeof aulas.$inferInsert)["situacao"];
+    motivo?: string;
+    criadoPor: string;
+  },
+) {
+  const [aula] = await db
+    .insert(aulas)
+    .values({ situacao: "realizada", ...valores })
+    .returning();
+  return aula;
+}
+
+export async function marcarPresenca(
+  db: Banco,
+  valores: { aulaId: string; pessoaId: string; por: string },
+) {
+  const [presenca] = await db
+    .insert(presencasAula)
+    .values({
+      aulaId: valores.aulaId,
+      pessoaId: valores.pessoaId,
+      marcadaPor: valores.por,
+    })
+    .returning();
+  return presenca;
 }
