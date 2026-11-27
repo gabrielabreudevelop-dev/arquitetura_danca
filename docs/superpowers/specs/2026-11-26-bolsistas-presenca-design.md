@@ -174,15 +174,15 @@ Verificável localmente e na CI. Verificado em 2026-11-27 (branch `bolsistas-pre
 - [x] A administração cadastra, edita, ativa e inativa bolsistas (com responsável para menor), muda os dias combinados com histórico e a preferência (testado).
 - [x] A chamada lista os combinados certos para cada aula pelo acordo vigente na data, aceita acrescentar outros, salva marcando e desmarcando com histórico, recusa data futura e dia sem aula da turma, e "não houve aula" funciona como descrito (testado, inclusive duas pessoas salvando ao mesmo tempo).
 - [x] A frequência e a lista "sem vir" seguem a seção 7, incluindo feriado (`nao_houve`), dia sem chamada, mudança de acordo no meio do mês e período inativo (testes de unidade e de integração; "hoje" em São Paulo, também com o processo em outro fuso).
-- [x] Contatos de bolsistas funcionam como os do M2 (registro, resultado, "não quer contato", aviso concorrente, mensagem com `{nome}` e `{dias}`) (testado).
+- [x] Contatos de bolsistas funcionam como os do M2 (registro, resultado, "não quer contato", aviso concorrente, mensagem com `{nome}` e `{dias}`), e a lista "sem vir" recusa, no momento de abrir o WhatsApp, quem voltou a vir na janela da tela (corrigido no fechamento; `tests/integracao/contatos-bolsistas.test.ts` e `src/servidor/contatos/pedido-abrir.test.ts`) (testado).
 - [x] Dash: os números de bolsistas batem com as listas que abrem (testado).
-- [x] Toda action e página nova passa pelos testes estáticos de acesso; uma pessoa só atendente não acessa nada deste marco (testado).
+- [x] Toda action e página nova passa pelos testes estáticos de acesso (`src/app/painel/acoes-protegidas.test.ts`, que percorre todo o `src/`, e `src/app/painel/paginas-protegidas.test.ts`, com as pastas `bolsistas` e `chamada`); uma pessoa só atendente não acessa nada deste marco (testado).
 - [x] Telas verificadas em 375, 768 e 1280 px, com estados vazio, erro e enviando.
 - [ ] CI verde (confirmar no push da branch).
 
 Pendente em produção (dono, continua pendente): cadastrar os bolsistas reais e os dias combinados; fazer a primeira chamada.
 
-Mudança durante a construção: só um dia em que a chamada foi **salva** conta como "dia com chamada" (aulas ganharam `chamada_salva_em` e `chamada_salva_por`, migração 0013), para que marcar e desfazer "não houve aula" não vire falta.
+Mudança durante a construção: só um dia em que a chamada foi **salva** conta como "dia com chamada" (aulas ganharam `chamada_salva_em` e `chamada_salva_por`, migração 0013), para que marcar e desfazer "não houve aula" não vire falta; marcar "não houve aula" numa aula que já tinha chamada salva (esvaziada) limpa esse registro.
 
 ## 11. Decisões em aberto (com a dona do estúdio)
 - Se há mínimo de presenças para manter a bolsa (hoje: nenhuma regra automática).

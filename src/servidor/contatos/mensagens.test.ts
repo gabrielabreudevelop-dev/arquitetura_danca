@@ -35,6 +35,12 @@ describe("validarTextoMensagem", () => {
     expect(validarTextoMensagem("Até {fim}", "bolsista")).toBe(
       "Campo {fim} não existe. Use {nome} ou {dias}.",
     );
+    expect(validarTextoMensagem("Turma {turma}", "bolsista")).toBe(
+      "Campo {turma} não existe. Use {nome} ou {dias}.",
+    );
+    expect(validarTextoMensagem("Aluno {aluno}", "bolsista")).toBe(
+      "Campo {aluno} não existe. Use {nome} ou {dias}.",
+    );
   });
   it("renovação e retorno recusam {dias}", () => {
     expect(validarTextoMensagem("Aulas de {dias}", "renovacao")).toBe(
