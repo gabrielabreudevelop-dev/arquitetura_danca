@@ -89,6 +89,7 @@ type Montagem = {
   matriculas?: MatriculaAberta[];
   contato?: Partial<PessoaDeContato>;
   ultimoContato?: UltimoContato | null;
+  ultimoContatoGeral?: UltimoContato | null;
 };
 
 function aluno(m: Montagem = {}): AlunoCarregado {
@@ -123,6 +124,7 @@ function aluno(m: Montagem = {}): AlunoCarregado {
       ...m.contato,
     },
     ultimoContato: m.ultimoContato ?? null,
+    ultimoContatoGeral: m.ultimoContatoGeral ?? m.ultimoContato ?? null,
   };
 }
 

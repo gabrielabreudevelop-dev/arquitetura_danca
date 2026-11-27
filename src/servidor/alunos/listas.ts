@@ -321,10 +321,11 @@ export function linhasDeContato(
       continue;
     }
     const ultimo = a.ultimoContato;
+    const geral = a.ultimoContatoGeral;
     const recente =
-      ultimo &&
-      agora.getTime() - ultimo.em.getTime() < DIAS_CONTATO_RECENTE * MS_POR_DIA
-        ? ultimo
+      geral &&
+      agora.getTime() - geral.em.getTime() < DIAS_CONTATO_RECENTE * MS_POR_DIA
+        ? geral
         : null;
     linhas.set(a.contato.pessoaId, {
       pessoa: a.contato,
