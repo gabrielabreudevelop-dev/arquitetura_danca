@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  CAMPOS_POR_FINALIDADE,
   EXEMPLO_MENSAGEM,
   juntarLista,
   linkConversa,
@@ -10,19 +11,38 @@ import {
 
 describe("validarTextoMensagem", () => {
   it("recusa campo desconhecido", () => {
-    expect(validarTextoMensagem("Oi, {nome}! {xyz}")).toBe(
+    expect(validarTextoMensagem("Oi, {nome}! {xyz}", "renovacao")).toBe(
       "Campo {xyz} não existe. Use {nome}, {aluno}, {turma} ou {fim}.",
     );
   });
   it("recusa texto vazio", () => {
-    expect(validarTextoMensagem("")).toBe("Escreva a mensagem.");
-    expect(validarTextoMensagem("   ")).toBe("Escreva a mensagem.");
+    expect(validarTextoMensagem("", "renovacao")).toBe("Escreva a mensagem.");
+    expect(validarTextoMensagem("   ", "bolsista")).toBe("Escreva a mensagem.");
   });
   it("aceita só campos válidos", () => {
     expect(
-      validarTextoMensagem("Oi, {nome}! {aluno} {turma} {fim}"),
+      validarTextoMensagem("Oi, {nome}! {aluno} {turma} {fim}", "renovacao"),
     ).toBeNull();
-    expect(validarTextoMensagem("Sem campos")).toBeNull();
+    expect(
+      validarTextoMensagem("Oi, {nome}! {aluno} {turma} {fim}", "retorno"),
+    ).toBeNull();
+    expect(validarTextoMensagem("Sem campos", "renovacao")).toBeNull();
+  });
+  it("bolsista aceita só {nome} e {dias}", () => {
+    expect(
+      validarTextoMensagem("Oi, {nome}! Aulas de {dias}.", "bolsista"),
+    ).toBeNull();
+    expect(validarTextoMensagem("Até {fim}", "bolsista")).toBe(
+      "Campo {fim} não existe. Use {nome} ou {dias}.",
+    );
+  });
+  it("renovação e retorno recusam {dias}", () => {
+    expect(validarTextoMensagem("Aulas de {dias}", "renovacao")).toBe(
+      "Campo {dias} não existe. Use {nome}, {aluno}, {turma} ou {fim}.",
+    );
+    expect(validarTextoMensagem("Aulas de {dias}", "retorno")).toBe(
+      "Campo {dias} não existe. Use {nome}, {aluno}, {turma} ou {fim}.",
+    );
   });
 });
 
@@ -76,11 +96,31 @@ describe("linkConversa", () => {
   });
 });
 
+it("campos por finalidade", () => {
+  expect(CAMPOS_POR_FINALIDADE).toEqual({
+    renovacao: ["nome", "aluno", "turma", "fim"],
+    retorno: ["nome", "aluno", "turma", "fim"],
+    bolsista: ["nome", "dias"],
+  });
+});
+
 it("exemplo traz todos os campos", () => {
   expect(EXEMPLO_MENSAGEM).toEqual({
     nome: "Carla",
     aluno: "Bruno",
     turma: "Forró Iniciante",
     fim: "08/12",
+    dias: "terças e quintas",
+  });
+});
+
+describe("preencherMensagem com {dias}", () => {
+  it("preenche {dias} e deixa intacto o campo sem valor", () => {
+    expect(
+      preencherMensagem("Oi, {nome}! Aulas de {dias}. {fim}", {
+        nome: "Bruno",
+        dias: "terças e quintas",
+      }),
+    ).toBe("Oi, Bruno! Aulas de terças e quintas. {fim}");
   });
 });

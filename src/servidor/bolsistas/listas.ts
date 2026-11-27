@@ -3,7 +3,6 @@
  * sobre a carga única (`carregarBolsistas`). Funções puras: os números são
  * calculados pelas mesmas regras das listas que eles abrem.
  */
-import type { DataIso } from "../alunos/datas";
 import { JANELAS, type Janela, normalizarBusca } from "../alunos/listas";
 import type {
   PessoaDeContato,

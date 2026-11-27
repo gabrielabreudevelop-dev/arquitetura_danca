@@ -1,6 +1,10 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
+import {
+  CAMPOS_POR_FINALIDADE,
+  type CampoMensagem,
+} from "@/servidor/contatos/mensagens";
 import { BotaoEnviar } from "../../_formulario/botao-enviar";
 import { Campo } from "../../_formulario/campo";
 import { ESTADO_INICIAL } from "../../_formulario/estado";
@@ -15,12 +19,17 @@ type Mensagem = {
   ativa: boolean;
 };
 
-const CAMPOS = [
-  ["{nome}", "primeiro nome de quem recebe"],
-  ["{aluno}", "primeiro nome do aluno"],
-  ["{turma}", "ritmo e módulo da turma do aluno"],
-  ["{fim}", "fim do período, como 08/12"],
-];
+const DESCRICAO_DOS_CAMPOS: Record<CampoMensagem, string> = {
+  nome: "primeiro nome de quem recebe",
+  aluno: "primeiro nome do aluno",
+  turma: "ritmo e módulo da turma do aluno",
+  fim: "fim do período, como 08/12",
+  dias: "dias das aulas do bolsista, como terças e quintas",
+};
+
+function ehFinalidade(valor: string): valor is Mensagem["finalidade"] {
+  return Object.hasOwn(CAMPOS_POR_FINALIDADE, valor);
+}
 
 /**
  * Formulário de mensagem pronta. A prévia vem do servidor: `previaInicial` ao
@@ -37,8 +46,25 @@ export function FormularioMensagem({
   const erros = estado.erros ?? {};
   const v = estado.valores;
   const previa = v?.previa ?? previaInicial;
+  // A lista de campos acompanha a finalidade escolhida, antes de salvar.
+  const [escolhida, setEscolhida] = useState<string | null>(null);
+  const finalidade = escolhida ?? v?.finalidade ?? mensagem?.finalidade;
+  const campos =
+    CAMPOS_POR_FINALIDADE[
+      finalidade && ehFinalidade(finalidade) ? finalidade : "renovacao"
+    ];
   return (
-    <form action={acao} noValidate className="flex flex-col gap-6">
+    <form
+      action={acao}
+      noValidate
+      className="flex flex-col gap-6"
+      onChange={(e) => {
+        const alvo = e.target as HTMLElement;
+        if (alvo instanceof HTMLSelectElement && alvo.name === "finalidade") {
+          setEscolhida(alvo.value);
+        }
+      }}
+    >
       {mensagem && <input type="hidden" name="id" value={mensagem.id} />}
       <Campo
         nome="nome"
@@ -56,6 +82,7 @@ export function FormularioMensagem({
       >
         <option value="renovacao">Renovação</option>
         <option value="retorno">Convite para voltar</option>
+        <option value="bolsista">Bolsista sem vir</option>
       </Campo>
       <div className="flex flex-col gap-3">
         <Campo
@@ -70,10 +97,10 @@ export function FormularioMensagem({
         <div className="flex flex-col gap-1 text-pequeno text-texto-suave">
           <p className="font-semibold">Campos que se preenchem sozinhos</p>
           <ul className="flex flex-col gap-1">
-            {CAMPOS.map(([campo, descricao]) => (
+            {campos.map((campo) => (
               <li key={campo}>
-                <code className="font-semibold text-texto">{campo}</code>:{" "}
-                {descricao}
+                <code className="font-semibold text-texto">{`{${campo}}`}</code>
+                : {DESCRICAO_DOS_CAMPOS[campo]}
               </li>
             ))}
           </ul>

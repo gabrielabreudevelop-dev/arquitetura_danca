@@ -169,8 +169,14 @@ describe("validarPedidoAbrir", () => {
     });
   });
 
-  it("aceita as três listas e normaliza os ids", () => {
-    for (const lista of ["vence_em_breve", "vencido", "ficha"]) {
+  it("aceita as cinco listas e normaliza os ids", () => {
+    for (const lista of [
+      "vence_em_breve",
+      "vencido",
+      "ficha",
+      "bolsista_ausente",
+      "ficha_bolsista",
+    ]) {
       const r = validarPedidoAbrir(
         cabecalhos(MESMA),
         formulario([
@@ -353,6 +359,81 @@ describe("responderAbrir", () => {
       expect(d.registrar).toHaveBeenCalledWith(
         expect.objectContaining({ confirmar: true }),
       );
+    });
+  });
+
+  describe("listas de bolsista", () => {
+    const INATIVO = async () => ({
+      ok: false as const,
+      erros: { _: "Este bolsista está inativo. Reative antes." },
+    });
+    const RECENTE = async () => ({
+      ok: false as const,
+      erros: {
+        _: "Outra pessoa da equipe já chamou este contato hoje. Confira antes de chamar de novo.",
+      },
+    });
+
+    it("erro vindo da ficha volta para a ficha do bolsista", async () => {
+      const d = dependencias(INATIVO);
+      const form = formulario([
+        ["aluno", A],
+        ["lista", "ficha_bolsista"],
+      ]);
+      expect(await responderAbrir(cabecalhos(MESMA), form, d)).toEqual({
+        status: 303,
+        location: `/painel/bolsistas/${A}?erro=inativo`,
+      });
+    });
+
+    it("contato recente na ficha volta para a ficha com o código", async () => {
+      const d = dependencias(RECENTE);
+      const form = formulario([
+        ["aluno", A],
+        ["lista", "ficha_bolsista"],
+      ]);
+      expect(await responderAbrir(cabecalhos(MESMA), form, d)).toEqual({
+        status: 303,
+        location: `/painel/bolsistas/${A}?erro=recente`,
+      });
+    });
+
+    it("erro vindo da lista volta para a aba de bolsistas, mantendo a janela", async () => {
+      const d = dependencias(INATIVO);
+      const form = formulario([
+        ["aluno", A],
+        ["lista", "bolsista_ausente"],
+        ["janela", "30"],
+      ]);
+      expect(await responderAbrir(cabecalhos(MESMA), form, d)).toEqual({
+        status: 303,
+        location: `/painel/contatos?lista=bolsista_ausente&janela=30&erro=inativo`,
+      });
+    });
+
+    it("recente na lista marca a linha do bolsista", async () => {
+      const d = dependencias(RECENTE);
+      const form = formulario([
+        ["aluno", A],
+        ["lista", "bolsista_ausente"],
+      ]);
+      expect(await responderAbrir(cabecalhos(MESMA), form, d)).toEqual({
+        status: 303,
+        location: `/painel/contatos?lista=bolsista_ausente&erro=recente&aluno=${A}`,
+      });
+    });
+
+    it("janela inválida é descartada", async () => {
+      const d = dependencias(INATIVO);
+      const form = formulario([
+        ["aluno", A],
+        ["lista", "bolsista_ausente"],
+        ["janela", "x"],
+      ]);
+      expect(await responderAbrir(cabecalhos(MESMA), form, d)).toEqual({
+        status: 303,
+        location: `/painel/contatos?lista=bolsista_ausente&erro=inativo`,
+      });
     });
   });
 

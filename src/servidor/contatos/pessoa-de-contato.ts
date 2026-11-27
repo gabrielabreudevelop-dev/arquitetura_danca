@@ -7,6 +7,7 @@ import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import type { Executor } from "../alunos/cadastro";
 import { bloqueiosContato, contatos, pessoas } from "../banco/esquema";
+import { LISTAS_BOLSISTA } from "./valores";
 
 /** Quem recebe as mensagens do aluno. */
 export type PessoaDeContato = {
@@ -35,12 +36,6 @@ export type ResponsavelDeContato = {
   email: string | null;
 };
 
-/** Listas de contato de cada tipo (valores do enum `lista_contato`). */
-export const LISTAS_DE_ALUNO = ["vence_em_breve", "vencido", "ficha"] as const;
-export const LISTAS_DE_BOLSISTA = [
-  "bolsista_ausente",
-  "ficha_bolsista",
-] as const;
 export type TipoDeLista = "aluno" | "bolsista";
 
 /**
@@ -116,7 +111,7 @@ export async function carregarContatos(
 
   // Um último contato por pessoa e por tipo de lista, numa consulta só.
   // Valores literais (não parâmetros) para o DISTINCT ON casar com o ORDER BY.
-  const literais = LISTAS_DE_BOLSISTA.map((l) => `'${l}'`).join(", ");
+  const literais = LISTAS_BOLSISTA.map((l) => `'${l}'`).join(", ");
   const ehDeBolsista = sql<boolean>`(${contatos.lista}::text in (${sql.raw(literais)}))`;
   const autor = alias(pessoas, "autor");
   const linhas = await db

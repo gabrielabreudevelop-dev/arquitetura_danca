@@ -8,7 +8,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { RESULTADOS } from "@/servidor/contatos/valores";
+import { RESULTADOS_ALUNO } from "@/servidor/contatos/valores";
 import { ESTADO_INICIAL } from "../_formulario/estado";
 import { MensagemErroGeral } from "../_formulario/mensagem";
 import { useVersao } from "../alunos/[id]/formularios/acompanhar";
@@ -177,7 +177,7 @@ export function FormularioResultado({
           <option value="" disabled>
             Escolha…
           </option>
-          {RESULTADOS.map((r) => (
+          {RESULTADOS_ALUNO.map((r) => (
             <option key={r} value={r}>
               {textoDoResultado(r)}
             </option>

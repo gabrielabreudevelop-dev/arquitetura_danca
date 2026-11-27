@@ -42,6 +42,7 @@ export function textoDoPeriodo(
 
 const RESULTADOS: Record<string, string> = {
   vai_renovar: "vai renovar",
+  vai_voltar: "vai voltar",
   vai_pensar: "vai pensar",
   nao_respondeu: "não respondeu",
   nao_volta: "não volta",

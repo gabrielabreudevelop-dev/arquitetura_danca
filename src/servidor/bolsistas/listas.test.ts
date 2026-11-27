@@ -12,7 +12,6 @@ import {
   urlBolsistas,
 } from "./listas";
 
-const HOJE = "2026-11-26";
 const AGORA = new Date("2026-11-26T15:00:00Z");
 let seq = 0;
 

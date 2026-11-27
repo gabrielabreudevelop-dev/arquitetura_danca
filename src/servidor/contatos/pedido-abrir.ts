@@ -5,17 +5,18 @@
  * mostra mensagens fixas desta tabela, nunca texto vindo do endereço.
  */
 import { MENSAGEM_ENCERRADO } from "../alunos/cadastro";
-import { lerFiltrosContatos, urlContatos } from "../alunos/listas";
+import { JANELAS, lerFiltrosContatos, urlContatos } from "../alunos/listas";
 import { ehUuid } from "../cadastros/comum";
 import type { Resultado } from "../cadastros/resultado";
 import {
   MENSAGEM_ALUNO_NAO_ENCONTRADO,
   MENSAGEM_BLOQUEADO,
+  MENSAGEM_BOLSISTA_INATIVO,
   MENSAGEM_CONTATOS_DIFERENTES,
   MENSAGEM_RECENTE,
   MENSAGEM_SEM_WHATSAPP,
 } from "./contatos";
-import { LISTAS, type ListaContato } from "./valores";
+import { ehListaDeBolsista, LISTAS, type ListaContato } from "./valores";
 
 const ERROS = {
   aluno: MENSAGEM_ALUNO_NAO_ENCONTRADO,
@@ -25,6 +26,7 @@ const ERROS = {
   bloqueado: MENSAGEM_BLOQUEADO,
   sem_whatsapp: MENSAGEM_SEM_WHATSAPP,
   encerrado: MENSAGEM_ENCERRADO,
+  inativo: MENSAGEM_BOLSISTA_INATIVO,
   recente: MENSAGEM_RECENTE,
   erro: "Não foi possível abrir o WhatsApp. Tente de novo.",
 } as const;
@@ -110,6 +112,41 @@ function voltarComErro(codigo: CodigoErroAbrir): RespostaAbrir {
 }
 
 /**
+ * Aba de bolsistas de `/painel/contatos`, com a janela recebida (só se for
+ * uma das conhecidas). Montada aqui porque `urlContatos` ainda não conhece a
+ * aba; a Tarefa 11 a integra.
+ */
+function urlAbaBolsistas(form: FormData): string {
+  const busca = new URLSearchParams({ lista: "bolsista_ausente" });
+  const janela = JANELAS.find((j) => String(j) === form.get("janela"));
+  if (janela) busca.set("janela", String(janela));
+  return `/painel/contatos?${busca.toString()}`;
+}
+
+/**
+ * Erro de um contato de bolsista: volta para a ficha do bolsista (`ficha_bolsista`)
+ * ou para a aba de bolsistas (`bolsista_ausente`). O contato recente marca a
+ * linha do bolsista na aba para a tela mostrar "Chamar mesmo assim".
+ */
+function voltarDeBolsista(
+  pedido: { alunoIds: string[]; lista: ListaContato },
+  form: FormData,
+  codigo: CodigoErroAbrir,
+): RespostaAbrir {
+  if (pedido.lista === "ficha_bolsista") {
+    return {
+      status: 303,
+      location: `/painel/bolsistas/${pedido.alunoIds[0]}?erro=${codigo}`,
+    };
+  }
+  const marca = codigo === "recente" ? `&aluno=${pedido.alunoIds[0]}` : "";
+  return {
+    status: 303,
+    location: `${urlAbaBolsistas(form)}&erro=${codigo}${marca}`,
+  };
+}
+
+/**
  * Contato recente de outra pessoa da equipe: volta para onde o botão estava
  * (a ficha, ou a mesma lista com os mesmos filtros), marcando o aluno para a
  * tela mostrar o aviso e "Chamar mesmo assim" na linha dele. O endereço é
@@ -178,6 +215,9 @@ export async function responderAbrir(
     });
     if (!resultado.ok) {
       const codigo = codigoDoErro(resultado.erros._ ?? "");
+      if (ehListaDeBolsista(pedido.lista)) {
+        return voltarDeBolsista(pedido, form, codigo);
+      }
       return codigo === "recente"
         ? voltarParaConfirmar(pedido, form)
         : voltarComErro(codigo);

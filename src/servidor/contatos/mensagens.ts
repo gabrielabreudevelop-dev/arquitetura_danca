@@ -1,22 +1,54 @@
-/** Campos que se preenchem sozinhos nas mensagens prontas. */
-export const CAMPOS_MENSAGEM = ["nome", "aluno", "turma", "fim"] as const;
+import type { Finalidade } from "../configuracoes/mensagens-prontas";
 
-export type ValoresMensagem = Record<(typeof CAMPOS_MENSAGEM)[number], string>;
+/** Campos que se preenchem sozinhos nas mensagens prontas. */
+export const CAMPOS_MENSAGEM = [
+  "nome",
+  "aluno",
+  "turma",
+  "fim",
+  "dias",
+] as const;
+export type CampoMensagem = (typeof CAMPOS_MENSAGEM)[number];
+
+/** Campos aceitos em cada finalidade, na ordem em que o formulário os lista. */
+export const CAMPOS_POR_FINALIDADE: Record<
+  Finalidade,
+  readonly CampoMensagem[]
+> = {
+  renovacao: ["nome", "aluno", "turma", "fim"],
+  retorno: ["nome", "aluno", "turma", "fim"],
+  bolsista: ["nome", "dias"],
+};
+
+/** Valores de cada campo; campo sem valor fica como está no texto. */
+export type ValoresMensagem = Partial<Record<CampoMensagem, string>>;
 
 /** Valores de exemplo para a prévia no formulário de mensagem. */
-export const EXEMPLO_MENSAGEM: ValoresMensagem = {
+export const EXEMPLO_MENSAGEM: Record<CampoMensagem, string> = {
   nome: "Carla",
   aluno: "Bruno",
   turma: "Forró Iniciante",
   fim: "08/12",
+  dias: "terças e quintas",
 };
 
-/** Mensagem de erro do texto, ou `null` se estiver bom. */
-export function validarTextoMensagem(texto: string): string | null {
+/** "{nome}", "{nome} e {dias}", "{nome}, {aluno} ou {fim}". */
+function listarCampos(campos: readonly string[]): string {
+  const chaves = campos.map((c) => `{${c}}`);
+  if (chaves.length <= 1) return chaves[0] ?? "";
+  return `${chaves.slice(0, -1).join(", ")} ou ${chaves[chaves.length - 1]}`;
+}
+
+/** Mensagem de erro do texto para a finalidade, ou `null` se estiver bom. */
+export function validarTextoMensagem(
+  texto: string,
+  finalidade: Finalidade,
+): string | null {
   if (texto.trim() === "") return "Escreva a mensagem.";
+  const campos = CAMPOS_POR_FINALIDADE[finalidade];
   for (const [, nome] of texto.matchAll(/\{([^{}]*)\}/g)) {
-    if (!(CAMPOS_MENSAGEM as readonly string[]).includes(nome)) {
-      return `Campo {${nome}} não existe. Use {nome}, {aluno}, {turma} ou {fim}.`;
+    if (!(campos as readonly string[]).includes(nome)) {
+      return `Campo {${nome}} não existe. Use ${listarCampos(campos)}.`;
     }
   }
   return null;
@@ -27,8 +59,8 @@ export function preencherMensagem(
   texto: string,
   valores: ValoresMensagem,
 ): string {
-  return texto.replace(/\{(nome|aluno|turma|fim)\}/g, (_, campo) => {
-    return valores[campo as keyof ValoresMensagem];
+  return texto.replace(/\{(nome|aluno|turma|fim|dias)\}/g, (inteiro, campo) => {
+    return valores[campo as CampoMensagem] ?? inteiro;
   });
 }
 
