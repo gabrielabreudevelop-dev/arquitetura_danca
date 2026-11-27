@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  diaDaSemana,
   diasEntre,
   ehDataIso,
   ehMenor,
@@ -91,5 +92,17 @@ describe("ehDataIso", () => {
     expect(ehDataIso("2101-01-01")).toBe(false);
     expect(ehDataIso("9999-12-31")).toBe(false);
     expect(ehDataIso("0000-01-01")).toBe(false);
+  });
+});
+
+describe("diaDaSemana", () => {
+  it("dá 0 para domingo e 6 para sábado, sem depender do fuso", () => {
+    expect(diaDaSemana("2026-11-26")).toBe(4);
+    expect(diaDaSemana("2026-11-29")).toBe(0);
+    expect(diaDaSemana("2026-11-28")).toBe(6);
+  });
+  it("não muda com a virada do mês e do ano", () => {
+    expect(diaDaSemana("2027-01-01")).toBe(5);
+    expect(diaDaSemana("2028-02-29")).toBe(2);
   });
 });

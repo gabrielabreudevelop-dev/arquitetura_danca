@@ -10,7 +10,7 @@
     "lint": "biome check",
     "tipos": "tsc --noEmit",
     "teste": "TZ=UTC vitest run --project unidade",
-    "teste:fuso": "TZ=Asia/Tokyo vitest run --project unidade src/servidor/vitrine src/servidor/alunos",
+    "teste:fuso": "TZ=Asia/Tokyo vitest run --project unidade src/servidor/vitrine src/servidor/alunos src/servidor/bolsistas",
     "teste:integracao": "vitest run --project integracao",
     "build:scripts": "esbuild scripts/migrar.ts scripts/criar-membro-equipe.ts scripts/verificar-restauracao.ts scripts/checar-saude.ts --bundle --platform=node --format=esm --target=node26 --outdir=dist --banner:js=\"import { createRequire as __cr } from 'node:module'; const require = __cr(import.meta.url);\"",
     "db:gerar": "drizzle-kit generate",
