@@ -32,7 +32,7 @@ export type EntradaFrequencia = {
   dias: Map<DataIso, Dia>;
 };
 
-/** Maior `a` pela data e, no empate, pelo `criadoEm` mais recente. */
+/** O item de maior data e, no empate, o de `criadoEm` mais recente. */
 function maisRecente<T extends { criadoEm: Date }>(
   itens: T[],
   data: (item: T) => DataIso,
@@ -89,7 +89,10 @@ export function frequencia(
       total.combinados++;
       if (dia?.presente) total.presentes++;
     } else if (dia?.presente && ativoEm(e.historico, data)) {
-      total.fora++;
+      const acordo = acordoVigenteEm(e.acordos, data);
+      if (acordo === null || !acordo.includes(diaDaSemana(data))) {
+        total.fora++;
+      }
     }
   }
   return total;

@@ -128,6 +128,29 @@ describe("frequencia", () => {
       ),
     ).toEqual({ combinados: 0, presentes: 0, fora: 0 });
   });
+
+  it("presença num dia do acordo sem chamada não conta como fora", () => {
+    const dias = new Map<DataIso, Dia>([
+      ["2026-11-10", { data: "2026-11-10", comChamada: false, presente: true }],
+    ]);
+    expect(
+      frequencia(
+        { acordos, historico: ativoDesdeSetembro, dias },
+        "2026-11-01",
+        "2026-11-26",
+      ),
+    ).toEqual({ combinados: 0, presentes: 0, fora: 0 });
+  });
+
+  it("presença antes de qualquer acordo conta como fora", () => {
+    const historico: MudancaSituacao[] = [
+      { tipo: "ativacao", data: "2026-08-01", criadoEm: criado(1) },
+    ];
+    const dias = mapa(["2026-08-15"], ["2026-08-15"]);
+    expect(
+      frequencia({ acordos, historico, dias }, "2026-08-01", "2026-08-31"),
+    ).toEqual({ combinados: 0, presentes: 0, fora: 1 });
+  });
 });
 
 describe("semVir", () => {
@@ -206,29 +229,24 @@ describe("semVir", () => {
     ).toEqual({ semVir: true, ultimaPresenca: null });
   });
 
-  it("a janela vai de hoje - (janela - 1) até hoje", () => {
-    const dias = mapa(["2026-11-10", "2026-11-17"], ["2026-11-17"]);
-    // janela 7: 20/11 a 26/11 — a terça 17/11 fica de fora
-    expect(
-      semVir({ acordos: soTerca, historico: ativoDesdeSetembro, dias }, hoje, 7)
-        .semVir,
-    ).toBe(false);
-    // janela 10: 17/11 a 26/11 — presença em 17/11 entra
-    expect(
-      semVir(
-        { acordos: soTerca, historico: ativoDesdeSetembro, dias },
-        hoje,
-        10,
-      ).semVir,
-    ).toBe(false);
-    // janela 7 com terça 24/11 com chamada e sem presença
-    const dias2 = mapa(["2026-11-24", "2026-11-17"], ["2026-11-17"]);
-    expect(
-      semVir(
-        { acordos: soTerca, historico: ativoDesdeSetembro, dias: dias2 },
-        hoje,
-        7,
-      ),
-    ).toEqual({ semVir: true, ultimaPresenca: "2026-11-17" });
+  const umaQuinta: VersaoAcordo[] = [
+    { dias: [4], vigenteDesde: "2026-09-01", criadoEm: criado(1) },
+  ];
+
+  it("o primeiro dia da janela conta: janela 15 pega 12/11, janela 14 não", () => {
+    const dias = mapa(["2026-11-12"], []);
+    const e = { acordos: umaQuinta, historico: ativoDesdeSetembro, dias };
+    expect(semVir(e, hoje, 15).semVir).toBe(true);
+    expect(semVir(e, hoje, 14).semVir).toBe(false);
+  });
+
+  it("com janela 1 só hoje conta", () => {
+    const e = (chamadas: DataIso[]) => ({
+      acordos: umaQuinta,
+      historico: ativoDesdeSetembro,
+      dias: mapa(chamadas, []),
+    });
+    expect(semVir(e(["2026-11-26"]), hoje, 1).semVir).toBe(true);
+    expect(semVir(e(["2026-11-19"]), hoje, 1).semVir).toBe(false);
   });
 });
