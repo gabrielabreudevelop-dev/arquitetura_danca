@@ -88,6 +88,17 @@ describe("obterChamada", () => {
     expect(ids(ter.disponiveis)).toContain(deQui.id);
   });
 
+  it("disponíveis trazem a preferência, para a contagem na tela", async () => {
+    const turma = await turmaTerQui();
+    const b = await bolsista({ dias: [4], preferencia: "conduzir" });
+    const ter = await obter(turma.id, TER);
+    expect(ter.disponiveis.find((x) => x.pessoaId === b.id)).toEqual({
+      pessoaId: b.id,
+      nome: expect.any(String),
+      preferencia: "conduzir",
+    });
+  });
+
   it("não lista inativos na data", async () => {
     const turma = await turmaTerQui();
     const b = await bolsista({ dias: [2] });

@@ -159,9 +159,14 @@ export default Pagina;`;
 describe("páginas do M2", () => {
   const paginas = PASTAS.flatMap(acharPaginas);
 
-  // `chamada` ainda não existe (Tarefa 10): por isso fica fora desta conferência.
-  it("existem páginas em alunos, configuracoes, vitrine e bolsistas", () => {
-    for (const pasta of ["alunos", "configuracoes", "vitrine", "bolsistas"]) {
+  it("existem páginas em alunos, configuracoes, vitrine, bolsistas e chamada", () => {
+    for (const pasta of [
+      "alunos",
+      "configuracoes",
+      "vitrine",
+      "bolsistas",
+      "chamada",
+    ]) {
       expect(paginas.some((p) => p.includes(`/painel/${pasta}/`))).toBe(true);
     }
   });

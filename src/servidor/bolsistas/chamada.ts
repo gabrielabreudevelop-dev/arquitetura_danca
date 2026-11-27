@@ -34,12 +34,13 @@ export const MENSAGEM_CHAMADA_MUDOU =
   "Esta chamada foi salva por outra pessoa. Confira a chamada atual antes de salvar.";
 export const MENSAGEM_CHAMADA_VAZIA =
   "Ninguém veio? Se não houve aula, use “Não houve aula”.";
-const MENSAGEM_DATA_INVALIDA = "Informe uma data válida.";
-const MENSAGEM_DATA_FUTURA =
+export const MENSAGEM_DATA_INVALIDA = "Informe uma data válida.";
+export const MENSAGEM_DATA_FUTURA =
   "Não dá para fazer chamada de um dia que ainda não chegou.";
-const MENSAGEM_SEM_AULA_NO_DIA = "Essa turma não tem aula nesse dia da semana.";
-const MENSAGEM_TURMA_INEXISTENTE = "Turma não encontrada.";
-const MENSAGEM_TURMA_INATIVA = "Escolha uma turma ativa.";
+export const MENSAGEM_SEM_AULA_NO_DIA =
+  "Essa turma não tem aula nesse dia da semana.";
+export const MENSAGEM_TURMA_INEXISTENTE = "Turma não encontrada.";
+export const MENSAGEM_TURMA_INATIVA = "Escolha uma turma ativa.";
 const MENSAGEM_NAO_BOLSISTA = "Só bolsistas podem receber presença.";
 const MENSAGEM_BOLSISTA_INATIVO =
   "Só bolsistas ativos nesse dia podem receber presença.";
@@ -196,7 +197,7 @@ export async function obterChamada(
     motivo: string | null;
     combinados: LinhaChamada[];
     extras: LinhaChamada[];
-    disponiveis: { pessoaId: string; nome: string }[];
+    disponiveis: { pessoaId: string; nome: string; preferencia: Preferencia }[];
     contagem: {
       vieram: number;
       conduzir: number;
@@ -235,7 +236,11 @@ export async function obterChamada(
 
   const combinados: LinhaChamada[] = [];
   const extras: LinhaChamada[] = [];
-  const disponiveis: { pessoaId: string; nome: string }[] = [];
+  const disponiveis: {
+    pessoaId: string;
+    nome: string;
+    preferencia: Preferencia;
+  }[] = [];
   const contagem = { vieram: 0, conduzir: 0, ser_conduzido: 0, os_dois: 0 };
   const dia = diaDaSemana(data);
 
@@ -267,7 +272,12 @@ export async function obterChamada(
     }
     if (ativo && vigente?.includes(dia)) combinados.push(linha);
     else if (presente) extras.push(linha);
-    else if (ativo) disponiveis.push({ pessoaId: f.pessoaId, nome: f.nome });
+    else if (ativo)
+      disponiveis.push({
+        pessoaId: f.pessoaId,
+        nome: f.nome,
+        preferencia: f.preferencia,
+      });
   }
 
   return {
