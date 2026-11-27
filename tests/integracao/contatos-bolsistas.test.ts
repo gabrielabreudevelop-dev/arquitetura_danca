@@ -77,12 +77,17 @@ const textoDoLink = (url: string) => new URL(url).searchParams.get("text");
 async function bolsista(
   nome: string,
   dias = [2, 4],
-  extra: { nascimento?: string; responsavelId?: string } = {},
+  extra: {
+    nascimento?: string;
+    responsavelId?: string;
+    tambemAluno?: boolean;
+  } = {},
 ) {
   const b = await criarBolsista(banco.db, {
     criadoPor: adm.id,
     dias,
     nascimento: extra.nascimento,
+    tambemAluno: extra.tambemAluno,
   });
   await banco.db.update(pessoas).set({ nome }).where(eq(pessoas.id, b.id));
   if (extra.responsavelId) {
@@ -569,7 +574,7 @@ describe("mensagem por finalidade", () => {
 
 describe("grupos e histórico separados por tipo de lista", () => {
   async function alunoEBolsista() {
-    const b = await bolsista("Pessoa Dupla");
+    const b = await bolsista("Pessoa Dupla", [2, 4], { tambemAluno: true });
     const grupoAluno = crypto.randomUUID();
     const grupoBolsista = crypto.randomUUID();
     const base = {

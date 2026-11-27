@@ -67,7 +67,7 @@ it("a fábrica cria bolsista com papel, ativação e acordo vigente", async () =
     await banco.sql(
       `select papel, ativo from pessoa_papeis where pessoa_id = '${b.id}'`,
     ),
-  ).toEqual([{ papel: "aluno", ativo: true }]);
+  ).toEqual([{ papel: "bolsista", ativo: true }]);
   expect(
     await banco.sql(
       `select tipo, data::text as data from situacoes_bolsista where pessoa_id = '${b.id}'`,
@@ -78,6 +78,22 @@ it("a fábrica cria bolsista com papel, ativação e acordo vigente", async () =
       `select dias, vigente_desde::text as desde from acordos_bolsista where pessoa_id = '${b.id}'`,
     ),
   ).toEqual([{ dias: [1, 3], desde: "2026-10-05" }]);
+});
+
+it("a fábrica cria aluno e bolsista só quando pedido", async () => {
+  const adm = await criarAdministracao(banco.db);
+  const b = await criarBolsista(banco.db, {
+    criadoPor: adm.id,
+    tambemAluno: true,
+  });
+  expect(
+    await banco.sql(
+      `select papel, ativo from pessoa_papeis where pessoa_id = '${b.id}' order by papel`,
+    ),
+  ).toEqual([
+    { papel: "aluno", ativo: true },
+    { papel: "bolsista", ativo: true },
+  ]);
 });
 
 it("aulas recusa a mesma turma e data duas vezes e 'não houve' sem motivo", async () => {

@@ -256,7 +256,10 @@ describe("carregarBolsistas", () => {
   });
 
   it("pessoa aluno + bolsista aparece nas duas cargas com a mesma pessoa de contato", async () => {
-    const b = await criarBolsista(banco.db, { criadoPor: adm.id });
+    const b = await criarBolsista(banco.db, {
+      criadoPor: adm.id,
+      tambemAluno: true,
+    });
     const [comoBolsista] = await carregarBolsistas(banco.db, HOJE, {
       ids: [b.id],
     });
@@ -283,7 +286,10 @@ describe("carregarBolsistas", () => {
   });
 
   it("ultimoContato separa os tipos de lista; o geral cruza", async () => {
-    const b = await criarBolsista(banco.db, { criadoPor: adm.id });
+    const b = await criarBolsista(banco.db, {
+      criadoPor: adm.id,
+      tambemAluno: true,
+    });
     const antigo = new Date("2026-11-10T12:00:00Z");
     const novo = new Date("2026-11-24T12:00:00Z");
     const g1 = crypto.randomUUID();

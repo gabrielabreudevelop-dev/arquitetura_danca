@@ -217,8 +217,10 @@ export async function criarMatricula(
 }
 
 /**
- * Bolsista: pessoa com papel `aluno` ativo, ficha em `bolsistas`, ativação em
+ * Bolsista: pessoa com o papel `bolsista` ativo (como no cadastro real, sem o
+ * papel `aluno`, salvo `tambemAluno`), ficha em `bolsistas`, ativação em
  * `desde` e acordo de dias vigente desde `desde` (padrão: terças, 2026-11-01).
+ * Adulto por padrão e com WhatsApp próprio.
  */
 export async function criarBolsista(
   db: Banco,
@@ -228,10 +230,27 @@ export async function criarBolsista(
     desde?: DataIso;
     preferencia?: (typeof bolsistas.$inferInsert)["preferencia"];
     nascimento?: DataIso;
+    /** Também aluno (papel `aluno` ativo), de propósito. */
+    tambemAluno?: boolean;
   },
 ) {
   const { criadoPor, dias = [2], desde = "2026-11-01", preferencia } = valores;
-  const pessoa = await criarAluno(db, { nascimento: valores.nascimento });
+  const [pessoa] = await db
+    .insert(pessoas)
+    .values({
+      nome: `Bolsista ${sufixo()}`,
+      whatsapp: whatsappAleatorio(),
+      dataNascimento: valores.nascimento ?? "1990-01-01",
+    })
+    .returning();
+  await db
+    .insert(pessoaPapeis)
+    .values([
+      { pessoaId: pessoa.id, papel: "bolsista" as const, ativo: true },
+      ...(valores.tambemAluno
+        ? [{ pessoaId: pessoa.id, papel: "aluno" as const, ativo: true }]
+        : []),
+    ]);
   await db.insert(bolsistas).values({ pessoaId: pessoa.id, preferencia });
   await db.insert(situacoesBolsista).values({
     pessoaId: pessoa.id,

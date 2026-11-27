@@ -26,7 +26,7 @@ export const tipoSituacaoBolsista = pgEnum("tipo_situacao_bolsista", [
 ]);
 export const situacaoAula = pgEnum("situacao_aula", ["realizada", "nao_houve"]);
 
-/** Ficha do aluno bolsista (a pessoa tem também o papel `aluno`). */
+/** Ficha do bolsista: a pessoa tem o papel `bolsista` (e pode ter outros, como `aluno`). */
 export const bolsistas = pgTable("bolsistas", {
   pessoaId: uuid("pessoa_id")
     .primaryKey()
