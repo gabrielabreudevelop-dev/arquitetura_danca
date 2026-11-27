@@ -515,6 +515,8 @@ export async function marcarNaoHouve(
           .limit(1);
         if (viva) throw new ErrosDeFormulario({ _: MENSAGEM_COM_PRESENCA });
         const versao = aula.versao + 1;
+        // Sem presença viva, a chamada salva antes não guarda ninguém: limpar
+        // faz o "desfazer" voltar a "sem chamada", e o dia não vira falta.
         await tx
           .update(aulas)
           .set({
@@ -523,6 +525,8 @@ export async function marcarNaoHouve(
             versao,
             alteradoPor: a.feitoPor,
             alteradoEm: sql`now()`,
+            chamadaSalvaEm: null,
+            chamadaSalvaPor: null,
           })
           .where(eq(aulas.id, aula.id));
         return { ok: true, valor: { aulaId: aula.id, versao } };

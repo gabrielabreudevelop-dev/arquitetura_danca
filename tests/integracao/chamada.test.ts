@@ -5,6 +5,7 @@ import {
   presencasAula,
   situacoesBolsista,
 } from "@/servidor/banco/esquema";
+import { carregarBolsistas } from "@/servidor/bolsistas/carga";
 import {
   desfazerNaoHouve,
   MENSAGEM_CHAMADA_MUDOU,
@@ -586,10 +587,10 @@ describe("não houve aula", () => {
       .where(eq(aulas.turmaId, turma.id));
     expect(aula.alteradoPor).toBe(adm.id);
     expect(aula.alteradoEm).not.toBeNull();
-    // Marcar "não houve" não mexe no registro da chamada salva.
-    const salvaEm = aula.chamadaSalvaEm;
-    expect(salvaEm).not.toBeNull();
-    expect(aula.chamadaSalvaPor).toBe(adm.id);
+    // Marcar "não houve" limpa o registro da chamada salva: desfeito, o dia
+    // volta a ficar sem chamada (e não vira falta).
+    expect(aula.chamadaSalvaEm).toBeNull();
+    expect(aula.chamadaSalvaPor).toBeNull();
     const outro = await criarAdministracao(banco.db);
     const d = await desfazerNaoHouve(
       banco.db,
@@ -601,9 +602,50 @@ describe("não houve aula", () => {
       .select()
       .from(aulas)
       .where(eq(aulas.turmaId, turma.id));
-    expect(depois.chamadaSalvaEm).toEqual(salvaEm);
-    expect(depois.chamadaSalvaPor).toBe(adm.id);
+    expect(depois.chamadaSalvaEm).toBeNull();
+    expect(depois.chamadaSalvaPor).toBeNull();
     expect(depois.alteradoPor).toBe(outro.id);
+  });
+
+  it("chamada salva, esvaziada, marcada e desfeita: volta a ficar sem chamada e não vira falta", async () => {
+    // Segunda: nenhum outro teste deste arquivo tem aula às segundas.
+    const SEG = "2026-11-23";
+    const turma = await criarTurma(banco.db, { dias: [1] });
+    const b = await bolsista({ dias: [1] });
+    const r1 = await salvar(turma.id, SEG, [b.id], 0);
+    expect(r1.ok && r1.valor.versao).toBe(1);
+    const r2 = await salvar(turma.id, SEG, [], 1, { confirmarVazia: true });
+    expect(r2.ok && r2.valor.versao).toBe(2);
+    const m = await marcarNaoHouve(
+      banco.db,
+      { turmaId: turma.id, data: SEG, motivo: "feriado", feitoPor: adm.id },
+      HOJE,
+    );
+    expect(m.ok && m.valor.versao).toBe(3);
+    const d = await desfazerNaoHouve(
+      banco.db,
+      { turmaId: turma.id, data: SEG, feitoPor: adm.id },
+      HOJE,
+    );
+    expect(d.ok && d.valor.versao).toBe(4);
+
+    const dia = await turmasDoDia(banco.db, SEG, HOJE);
+    expect(
+      dia.ok && dia.valor.find((t) => t.turmaId === turma.id)?.situacao,
+    ).toBe("sem_chamada");
+    expect((await obter(turma.id, SEG)).situacao).toBe("sem_chamada");
+
+    const [carregado] = await carregarBolsistas(banco.db, HOJE, {
+      ids: [b.id],
+    });
+    expect(carregado.mes).toEqual({ combinados: 0, presentes: 0, fora: 0 });
+    expect(carregado.semVir[7].semVir).toBe(false);
+    expect(carregado.semVir[15].semVir).toBe(false);
+    expect(carregado.semVir[30].semVir).toBe(false);
+
+    const vazia = await salvar(turma.id, SEG, [], 4);
+    expect(vazia.ok).toBe(false);
+    if (!vazia.ok) expect(vazia.erros._).toBe(MENSAGEM_CHAMADA_VAZIA);
   });
 
   it("desfazer sem estar marcada recusa", async () => {
