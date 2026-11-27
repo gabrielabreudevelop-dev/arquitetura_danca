@@ -1,6 +1,7 @@
 import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import type { Banco } from "../banco/cliente";
 import {
+  bolsistas,
   contatos,
   encerramentosAluno,
   matriculas,
@@ -420,8 +421,9 @@ export async function podeExcluirAluno(
 }
 
 /**
- * Remove o papel `aluno` e a ligação com o responsável. Se a pessoa ficar sem
- * nenhum papel e sem login, apaga a pessoa também.
+ * Remove o papel `aluno` e a ligação com o responsável. Quem também é bolsista
+ * continua com o responsável (é a pessoa de contato do bolsista menor). Se a
+ * pessoa ficar sem nenhum papel e sem login, apaga a pessoa também.
  */
 export async function excluirAluno(
   db: Banco,
@@ -439,9 +441,16 @@ export async function excluirAluno(
         if (!(await podeExcluirAluno(tx, alunoId))) {
           return { ok: false, erros: { _: MENSAGEM_EM_USO } };
         }
-        await tx
-          .delete(responsabilidades)
-          .where(eq(responsabilidades.alunoId, alunoId));
+        const [bolsista] = await tx
+          .select({ id: bolsistas.pessoaId })
+          .from(bolsistas)
+          .where(eq(bolsistas.pessoaId, alunoId))
+          .limit(1);
+        if (!bolsista) {
+          await tx
+            .delete(responsabilidades)
+            .where(eq(responsabilidades.alunoId, alunoId));
+        }
         await tx
           .delete(pessoaPapeis)
           .where(

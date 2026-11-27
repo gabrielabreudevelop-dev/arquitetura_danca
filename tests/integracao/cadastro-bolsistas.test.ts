@@ -1,5 +1,6 @@
 import { asc, eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { excluirAluno, tornarAluno } from "@/servidor/alunos/cadastro";
 import {
   acordosBolsista,
   bolsistas,
@@ -17,6 +18,7 @@ import {
   mudarSituacao,
   tornarBolsista,
 } from "@/servidor/bolsistas/cadastro";
+import { carregarBolsistas } from "@/servidor/bolsistas/carga";
 import { normalizarWhatsapp } from "@/servidor/pessoas/normalizar";
 import { criarBancoDeTeste } from "../apoio/banco";
 import {
@@ -510,5 +512,39 @@ describe("mudarSituacao", () => {
       HOJE,
     );
     expect(r).toEqual({ ok: false, erros: { _: MENSAGEM_NAO_BOLSISTA } });
+  });
+});
+
+describe("excluir o aluno de quem também é bolsista", () => {
+  it("mantém o responsável do bolsista menor como pessoa de contato", async () => {
+    const id = await criar({
+      ...adulto(),
+      nascimento: "2014-05-06",
+      whatsapp: "",
+      responsavel: { nome: "Rita Mãe", whatsapp: zap() },
+    });
+    const [ligacao] = await banco.db
+      .select()
+      .from(responsabilidades)
+      .where(eq(responsabilidades.alunoId, id));
+    expect(ligacao).toBeDefined();
+    expect((await tornarAluno(banco.db, id)).ok).toBe(true);
+    expect(await papeis(id)).toEqual(["aluno:true", "bolsista:true"]);
+
+    expect(await excluirAluno(banco.db, id)).toEqual({ ok: true, valor: null });
+
+    expect(await papeis(id)).toEqual(["bolsista:true"]);
+    const depois = await banco.db
+      .select()
+      .from(responsabilidades)
+      .where(eq(responsabilidades.alunoId, id));
+    expect(depois).toEqual([ligacao]);
+    const [carregado] = await carregarBolsistas(banco.db, HOJE, { ids: [id] });
+    expect(carregado.contato).toMatchObject({
+      pessoaId: ligacao.responsavelId,
+      nome: "Rita Mãe",
+      ehResponsavel: true,
+    });
+    expect(carregado.contato.whatsapp).not.toBeNull();
   });
 });
