@@ -11,6 +11,7 @@ import {
 import { ehUuid, executarTraduzindo } from "../cadastros/comum";
 import type { Resultado } from "../cadastros/resultado";
 import {
+  atualizarDadosPessoa,
   type DadosAluno,
   ERROS_BANCO,
   type Executor,
@@ -18,7 +19,6 @@ import {
   ligarResponsavel,
   limparPessoa,
   limparResponsavel,
-  mensagemWhatsappRepetido,
   pessoaPorEmail,
   pessoasPorWhatsapp,
   procurarResponsavelExistente,
@@ -143,9 +143,13 @@ export async function cadastrarBolsista(
   if (!dias) erros.dias = MENSAGEM_DIAS;
   if (!ehPreferencia(dados.preferencia))
     erros.preferencia = MENSAGEM_PREFERENCIA;
-  if (!pessoa || !dias || !ehPreferencia(dados.preferencia))
+  if (
+    !pessoa ||
+    !dias ||
+    !ehPreferencia(dados.preferencia) ||
+    Object.keys(erros).length > 0
+  )
     return { ok: false, erros };
-  if (Object.keys(erros).length > 0) return { ok: false, erros };
   const preferencia = dados.preferencia;
 
   return executarTraduzindo<ValorCadastroBolsista>(
@@ -273,8 +277,12 @@ export async function atualizarBolsista(
     : null;
   if (!ehPreferencia(dados.preferencia))
     erros.preferencia = MENSAGEM_PREFERENCIA;
-  if (!pessoa || !ehPreferencia(dados.preferencia)) return { ok: false, erros };
-  if (Object.keys(erros).length > 0) return { ok: false, erros };
+  if (
+    !pessoa ||
+    !ehPreferencia(dados.preferencia) ||
+    Object.keys(erros).length > 0
+  )
+    return { ok: false, erros };
   const preferencia = dados.preferencia;
 
   return executarTraduzindo<null>(
@@ -286,48 +294,14 @@ export async function atualizarBolsista(
         if (!(await ehBolsista(tx, pessoaId))) {
           return { ok: false, erros: { _: MENSAGEM_NAO_BOLSISTA } };
         }
-        const [atual] = await tx
-          .select({ whatsapp: pessoas.whatsapp })
-          .from(pessoas)
-          .where(eq(pessoas.id, pessoaId));
-        if (pessoa.email) {
-          const dono = await pessoaPorEmail(tx, pessoa.email, pessoaId);
-          if (dono) {
-            return {
-              ok: false,
-              erros: { email: `Esse e-mail já pertence a ${dono.nome}.` },
-            };
-          }
-        }
-        if (
-          pessoa.whatsapp &&
-          pessoa.whatsapp !== atual?.whatsapp &&
-          !dados.confirmarWhatsappRepetido
-        ) {
-          const [outra] = await pessoasPorWhatsapp(
-            tx,
-            pessoa.whatsapp,
-            pessoaId,
-          );
-          if (outra) {
-            return {
-              ok: false,
-              erros: { whatsapp: mensagemWhatsappRepetido(outra.nome) },
-            };
-          }
-        }
-        await tx
-          .update(pessoas)
-          .set({
-            nome: pessoa.nome,
-            email: pessoa.email,
-            whatsapp: pessoa.whatsapp,
-            dataNascimento: pessoa.nascimento,
-            instagram: pessoa.instagram,
-            atualizadoEm: new Date(),
-          })
-          .where(eq(pessoas.id, pessoaId));
-        if (responsavel) await ligarResponsavel(tx, pessoaId, responsavel);
+        const atualizada = await atualizarDadosPessoa(
+          tx,
+          pessoaId,
+          pessoa,
+          responsavel,
+          dados.confirmarWhatsappRepetido,
+        );
+        if (!atualizada.ok) return atualizada;
         await tx
           .update(bolsistas)
           .set({ preferencia })

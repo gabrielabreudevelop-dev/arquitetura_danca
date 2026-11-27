@@ -5,6 +5,7 @@ import {
   bolsistas,
   pessoaPapeis,
   pessoas,
+  responsabilidades,
   situacoesBolsista,
 } from "@/servidor/banco/esquema";
 import {
@@ -296,6 +297,51 @@ describe("atualizarBolsista", () => {
       HOJE,
     );
     expect(n).toEqual({ ok: false, erros: { _: MENSAGEM_NAO_BOLSISTA } });
+  });
+});
+
+describe("responsável na atualização", () => {
+  const dadosMenor = () => ({
+    nome: "Bia Menor",
+    nascimento: "2015-03-01",
+    preferencia: "os_dois",
+  });
+  it("menor sem responsável ligado exige o responsável", async () => {
+    const b = await criarBolsista(banco.db, {
+      criadoPor: adm.id,
+      nascimento: "2015-03-01",
+    });
+    const r = await atualizarBolsista(banco.db, b.id, dadosMenor(), HOJE);
+    expect(!r.ok && r.erros.responsavel).toBe("Informe o responsável.");
+  });
+
+  it("o mesmo responsável já ligado não cria ligação nova", async () => {
+    const id = await criar({
+      ...adulto(),
+      nascimento: "2015-03-01",
+      whatsapp: "",
+      responsavel: { nome: "Mãe", whatsapp: zap() },
+    });
+    const antes = await banco.db
+      .select()
+      .from(responsabilidades)
+      .where(eq(responsabilidades.alunoId, id));
+    expect(antes).toHaveLength(1);
+    const r = await atualizarBolsista(
+      banco.db,
+      id,
+      {
+        ...dadosMenor(),
+        responsavel: { pessoaId: antes[0].responsavelId },
+      },
+      HOJE,
+    );
+    expect(r.ok).toBe(true);
+    const depois = await banco.db
+      .select()
+      .from(responsabilidades)
+      .where(eq(responsabilidades.alunoId, id));
+    expect(depois).toEqual(antes);
   });
 });
 

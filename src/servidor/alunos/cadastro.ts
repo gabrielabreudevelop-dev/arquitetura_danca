@@ -13,6 +13,7 @@ import {
 import { ehUuid, executarTraduzindo } from "../cadastros/comum";
 import { MENSAGEM_EM_USO, type Resultado } from "../cadastros/resultado";
 import {
+  atualizarDadosPessoa,
   type DadosAluno,
   type DadosResponsavel,
   ERROS_BANCO,
@@ -258,63 +259,13 @@ export async function atualizarAluno(
         if (!(await papelAluno(tx, alunoId))) {
           return { ok: false, erros: { _: MENSAGEM_NAO_ENCONTRADO } };
         }
-        const [atual] = await tx
-          .select({ whatsapp: pessoas.whatsapp })
-          .from(pessoas)
-          .where(eq(pessoas.id, alunoId));
-        if (aluno.email) {
-          const dono = await pessoaPorEmail(tx, aluno.email, alunoId);
-          if (dono) {
-            return {
-              ok: false,
-              erros: { email: `Esse e-mail já pertence a ${dono.nome}.` },
-            };
-          }
-        }
-        if (
-          aluno.whatsapp &&
-          aluno.whatsapp !== atual?.whatsapp &&
-          !dados.confirmarWhatsappRepetido
-        ) {
-          const [outra] = await pessoasPorWhatsapp(tx, aluno.whatsapp, alunoId);
-          if (outra) {
-            return {
-              ok: false,
-              erros: { whatsapp: mensagemWhatsappRepetido(outra.nome) },
-            };
-          }
-        }
-        const ligacoes = await tx
-          .select({ responsavelId: responsabilidades.responsavelId })
-          .from(responsabilidades)
-          .where(eq(responsabilidades.alunoId, alunoId));
-        const mudaResponsavel =
-          responsavel !== null &&
-          !(
-            responsavel.tipo === "pessoa" &&
-            ligacoes.some((l) => l.responsavelId === responsavel.pessoaId)
-          );
-        if (aluno.menor && ligacoes.length === 0 && !responsavel) {
-          return {
-            ok: false,
-            erros: { responsavel: "Informe o responsável." },
-          };
-        }
-        await tx
-          .update(pessoas)
-          .set({
-            nome: aluno.nome,
-            email: aluno.email,
-            whatsapp: aluno.whatsapp,
-            dataNascimento: aluno.nascimento,
-            instagram: aluno.instagram,
-            atualizadoEm: new Date(),
-          })
-          .where(eq(pessoas.id, alunoId));
-        if (responsavel && mudaResponsavel) {
-          await ligarResponsavel(tx, alunoId, responsavel);
-        }
-        return { ok: true, valor: null };
+        return atualizarDadosPessoa(
+          tx,
+          alunoId,
+          aluno,
+          responsavel,
+          dados.confirmarWhatsappRepetido,
+        );
       }),
     ERROS_BANCO,
   );

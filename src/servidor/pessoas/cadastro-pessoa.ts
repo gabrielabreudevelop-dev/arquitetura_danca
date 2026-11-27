@@ -16,8 +16,7 @@ type Transacao = Parameters<Parameters<Banco["transaction"]>[0]>[0];
 export type Executor = Banco | Transacao;
 
 const MENSAGEM_WHATSAPP = "WhatsApp inválido. Use DDD e número.";
-export const MENSAGEM_RESPONSAVEL_NAO_ENCONTRADO =
-  "Responsável não encontrado.";
+const MENSAGEM_RESPONSAVEL_NAO_ENCONTRADO = "Responsável não encontrado.";
 
 const INICIO_WHATSAPP_REPETIDO = "Já existe ";
 const FIM_WHATSAPP_REPETIDO = " com esse WhatsApp.";
@@ -342,17 +341,70 @@ export async function procurarResponsavelExistente(
   return achada;
 }
 
-/** O papel da pessoa (`undefined` se não tem). */
-export async function papelDaPessoa(
+/**
+ * Grava os dados da pessoa (já validados) dentro da transação: confere e-mail e
+ * WhatsApp de outra pessoa, exige responsável para menor sem ligação, atualiza
+ * a pessoa e troca a ligação com o responsável só se mudou.
+ */
+export async function atualizarDadosPessoa(
   tx: Executor,
   pessoaId: string,
-  papel: (typeof pessoaPapeis.$inferSelect)["papel"],
-) {
-  const [linha] = await tx
-    .select({ ativo: pessoaPapeis.ativo })
-    .from(pessoaPapeis)
-    .where(
-      and(eq(pessoaPapeis.pessoaId, pessoaId), eq(pessoaPapeis.papel, papel)),
+  pessoa: PessoaLimpa,
+  responsavel: ResponsavelLimpo | null,
+  confirmarWhatsappRepetido: boolean | undefined,
+): Promise<Resultado<null>> {
+  const [atual] = await tx
+    .select({ whatsapp: pessoas.whatsapp })
+    .from(pessoas)
+    .where(eq(pessoas.id, pessoaId));
+  if (pessoa.email) {
+    const dono = await pessoaPorEmail(tx, pessoa.email, pessoaId);
+    if (dono) {
+      return {
+        ok: false,
+        erros: { email: `Esse e-mail já pertence a ${dono.nome}.` },
+      };
+    }
+  }
+  if (
+    pessoa.whatsapp &&
+    pessoa.whatsapp !== atual?.whatsapp &&
+    !confirmarWhatsappRepetido
+  ) {
+    const [outra] = await pessoasPorWhatsapp(tx, pessoa.whatsapp, pessoaId);
+    if (outra) {
+      return {
+        ok: false,
+        erros: { whatsapp: mensagemWhatsappRepetido(outra.nome) },
+      };
+    }
+  }
+  const ligacoes = await tx
+    .select({ responsavelId: responsabilidades.responsavelId })
+    .from(responsabilidades)
+    .where(eq(responsabilidades.alunoId, pessoaId));
+  const mudaResponsavel =
+    responsavel !== null &&
+    !(
+      responsavel.tipo === "pessoa" &&
+      ligacoes.some((l) => l.responsavelId === responsavel.pessoaId)
     );
-  return linha;
+  if (pessoa.menor && ligacoes.length === 0 && !responsavel) {
+    return { ok: false, erros: { responsavel: "Informe o responsável." } };
+  }
+  await tx
+    .update(pessoas)
+    .set({
+      nome: pessoa.nome,
+      email: pessoa.email,
+      whatsapp: pessoa.whatsapp,
+      dataNascimento: pessoa.nascimento,
+      instagram: pessoa.instagram,
+      atualizadoEm: new Date(),
+    })
+    .where(eq(pessoas.id, pessoaId));
+  if (responsavel && mudaResponsavel) {
+    await ligarResponsavel(tx, pessoaId, responsavel);
+  }
+  return { ok: true, valor: null };
 }
