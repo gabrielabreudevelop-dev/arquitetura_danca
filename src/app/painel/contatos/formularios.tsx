@@ -8,7 +8,10 @@ import {
   useRef,
   useState,
 } from "react";
-import { RESULTADOS_ALUNO } from "@/servidor/contatos/valores";
+import {
+  type ListaContato,
+  RESULTADOS_ALUNO,
+} from "@/servidor/contatos/valores";
 import { ESTADO_INICIAL } from "../_formulario/estado";
 import { MensagemErroGeral } from "../_formulario/mensagem";
 import { useVersao } from "../alunos/[id]/formularios/acompanhar";
@@ -45,7 +48,7 @@ export function BotaoWhatsapp({
   rotuloAcessivel,
 }: {
   alunoIds: string[];
-  lista: "vence_em_breve" | "vencido" | "ficha";
+  lista: ListaContato;
   /**
    * Último grupo de contato que esta tela mostra para a pessoa: se outra
    * pessoa da equipe chamou depois, hoje, a rota pede confirmação.

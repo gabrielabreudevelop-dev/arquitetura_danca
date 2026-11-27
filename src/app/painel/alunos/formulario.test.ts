@@ -12,11 +12,14 @@ const ENVIOS = new Set([
 ]);
 
 /**
- * Nome do primeiro elemento que envia o `<form>` devolvido por
- * `FormularioAluno`, em ordem de código: um dos `ENVIOS` ou um
- * `<button type="submit">` (devolvido como "button").
+ * Nome do primeiro elemento que envia o `<form>` devolvido pelo componente
+ * (`FormularioAluno`, salvo outro nome), em ordem de código: um dos `ENVIOS`
+ * ou um `<button type="submit">` (devolvido como "button").
  */
-export function primeiroEnvio(texto: string): string | undefined {
+export function primeiroEnvio(
+  texto: string,
+  nomeDoComponente = "FormularioAluno",
+): string | undefined {
   const arquivo = ts.createSourceFile(
     "formulario.tsx",
     texto,
@@ -26,7 +29,7 @@ export function primeiroEnvio(texto: string): string | undefined {
   );
   const componente = arquivo.statements.find(
     (no): no is ts.FunctionDeclaration =>
-      ts.isFunctionDeclaration(no) && no.name?.text === "FormularioAluno",
+      ts.isFunctionDeclaration(no) && no.name?.text === nomeDoComponente,
   );
   let formulario: ts.JsxElement | undefined;
   const acharForm = (no: ts.Node) => {
@@ -86,5 +89,15 @@ describe("formulário de aluno", () => {
       "utf8",
     );
     expect(primeiroEnvio(texto)).toBe("BotaoPadrao");
+  });
+});
+
+describe("formulário de bolsista", () => {
+  it("Enter num campo envia o botão padrão, nunca uma resposta de pergunta", () => {
+    const texto = readFileSync(
+      join(process.cwd(), "src/app/painel/bolsistas/formulario.tsx"),
+      "utf8",
+    );
+    expect(primeiroEnvio(texto, "FormularioBolsista")).toBe("BotaoPadrao");
   });
 });

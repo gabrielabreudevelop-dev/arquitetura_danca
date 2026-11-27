@@ -60,6 +60,13 @@ export function acordoVigenteEm(
   return maisRecente(vigentes, (v) => v.vigenteDesde)?.dias ?? null;
 }
 
+/** A mudança de situação mais recente (a que vale hoje), ou null sem histórico. */
+export function ultimaMudanca(
+  historico: MudancaSituacao[],
+): MudancaSituacao | null {
+  return maisRecente(historico, (m) => m.data);
+}
+
 /** Uma inativação com data D vale a partir de D (D não conta como ativo). */
 export function ativoEm(historico: MudancaSituacao[], data: DataIso): boolean {
   const ate = historico.filter((m) => m.data <= data);

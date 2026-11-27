@@ -7,6 +7,7 @@ import {
   frequencia,
   type MudancaSituacao,
   semVir,
+  ultimaMudanca,
   type VersaoAcordo,
 } from "./regras";
 
@@ -248,5 +249,21 @@ describe("semVir", () => {
     });
     expect(semVir(e(["2026-11-26"]), hoje, 1).semVir).toBe(true);
     expect(semVir(e(["2026-11-19"]), hoje, 1).semVir).toBe(false);
+  });
+});
+
+describe("ultimaMudanca", () => {
+  it("sem histórico, nenhuma", () => {
+    expect(ultimaMudanca([])).toBeNull();
+  });
+
+  it("a de maior data; no empate, a registrada por último", () => {
+    const historico: MudancaSituacao[] = [
+      { tipo: "ativacao", data: "2026-09-01", criadoEm: criado(1) },
+      { tipo: "inativacao", data: "2026-10-12", criadoEm: criado(3) },
+      { tipo: "ativacao", data: "2026-10-12", criadoEm: criado(4) },
+      { tipo: "inativacao", data: "2026-10-01", criadoEm: criado(5) },
+    ];
+    expect(ultimaMudanca(historico)).toEqual(historico[2]);
   });
 });
