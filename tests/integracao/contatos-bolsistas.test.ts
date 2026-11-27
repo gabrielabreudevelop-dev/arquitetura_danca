@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { hojeEmSaoPaulo } from "@/servidor/alunos/datas";
+import { hojeEmSaoPaulo, somarDias } from "@/servidor/alunos/datas";
 import { obterFicha } from "@/servidor/alunos/ficha";
 import { contatos, pessoas, situacoesBolsista } from "@/servidor/banco/esquema";
 import { salvarMensagem } from "@/servidor/configuracoes/mensagens-prontas";
@@ -15,7 +15,10 @@ import { criarBancoDeTeste } from "../apoio/banco";
 import {
   criarAdministracao,
   criarAluno,
+  criarAula,
   criarBolsista,
+  criarTurma,
+  marcarPresenca,
 } from "../apoio/fabricas";
 
 let banco: Awaited<ReturnType<typeof criarBancoDeTeste>>;
@@ -28,11 +31,31 @@ const SEMENTE =
 const RECENTE =
   "Outra pessoa da equipe já chamou este contato hoje. Confira antes de chamar de novo.";
 const INATIVO = "Este bolsista está inativo. Reative antes.";
+const FORA_DA_LISTA = "Este bolsista voltou a vir. A lista foi atualizada.";
+
+/** Aula com chamada salva em cada data (turma de todos os dias), para marcar presença. */
+const aulaDoDia = new Map<string, string>();
 
 beforeAll(async () => {
   banco = await criarBancoDeTeste();
   adm = await criarAdministracao(banco.db);
   outra = await criarAdministracao(banco.db);
+  // Chamada salva em todos os dias da última semana (de HOJE e de hoje de
+  // verdade, que o registro usa) e em 17/11: quem não tem presença está
+  // "sem vir" em qualquer janela, como na lista que a tela mostra.
+  const turma = await criarTurma(banco.db, { dias: [0, 1, 2, 3, 4, 5, 6] });
+  const datas = new Set<string>(["2026-11-17"]);
+  for (const fim of [HOJE, hojeEmSaoPaulo()]) {
+    for (let i = 0; i < 7; i += 1) datas.add(somarDias(fim, -i));
+  }
+  for (const data of datas) {
+    const aula = await criarAula(banco.db, {
+      turmaId: turma.id,
+      data,
+      criadoPor: adm.id,
+    });
+    aulaDoDia.set(data, aula.id);
+  }
 });
 afterAll(async () => {
   await banco.encerrar();
@@ -144,12 +167,18 @@ describe("prepararContato de bolsista", () => {
   it("recusa id que não é de bolsista (aluno comum) e contatos diferentes", async () => {
     const aluno = await criarAluno(banco.db);
     expect(erros(await preparar([aluno.id], "bolsista_ausente"))).toEqual({
-      _: "Aluno não encontrado.",
+      _: "Bolsista não encontrado.",
+    });
+    expect(erros(await preparar([aluno.id], "ficha_bolsista"))).toEqual({
+      _: "Bolsista não encontrado.",
+    });
+    expect(erros(await preparar(["abc"], "ficha_bolsista"))).toEqual({
+      _: "Bolsista não encontrado.",
     });
     const x = await bolsista("Xavier Um");
     const y = await bolsista("Yuri Dois");
     expect(erros(await preparar([x.id, y.id], "bolsista_ausente"))).toEqual({
-      _: "Esses alunos não têm o mesmo contato.",
+      _: "Esses bolsistas não têm o mesmo contato.",
     });
   });
 
@@ -169,6 +198,104 @@ describe("prepararContato de bolsista", () => {
     expect(erros(await preparar([bloq.id], "bolsista_ausente"))).toEqual({
       _: "Esta pessoa pediu para não ser contatada.",
     });
+  });
+});
+
+describe("lista sem vir: só quem está sem vir na janela", () => {
+  it("quem voltou a vir é recusado na lista, mas a ficha aceita", async () => {
+    const b = await bolsista("Bruno Vindo");
+    await marcarPresenca(banco.db, {
+      aulaId: aulaDoDia.get("2026-11-24") ?? "",
+      pessoaId: b.id,
+      por: adm.id,
+    });
+    expect(erros(await preparar([b.id], "bolsista_ausente"))).toEqual({
+      _: FORA_DA_LISTA,
+    });
+    expect(ok(await preparar([b.id], "ficha_bolsista")).texto).toBe(
+      "Oi, Bruno! Sentimos sua falta nas aulas de terças e quintas. Tudo bem por aí?",
+    );
+  });
+
+  it("confere a janela pedida (padrão 15 dias)", async () => {
+    const b = await bolsista("Vânia Janela");
+    // Veio em 17/11: sem vir em 7 dias, não em 15 nem em 30.
+    await marcarPresenca(banco.db, {
+      aulaId: aulaDoDia.get("2026-11-17") ?? "",
+      pessoaId: b.id,
+      por: adm.id,
+    });
+    const pedir = (janela?: 7 | 15 | 30) =>
+      prepararContato(
+        banco.db,
+        { alunoIds: [b.id], lista: "bolsista_ausente", janela },
+        HOJE,
+      );
+    expect((await pedir(7)).ok).toBe(true);
+    expect(erros(await pedir())).toEqual({ _: FORA_DA_LISTA });
+    expect(erros(await pedir(15))).toEqual({ _: FORA_DA_LISTA });
+    expect(erros(await pedir(30))).toEqual({ _: FORA_DA_LISTA });
+  });
+
+  it("irmãos: basta um ter voltado a vir para recusar a linha", async () => {
+    const resp = await criarAluno(banco.db, { nome: "Lúcia Irmãos" });
+    const a = await bolsista("Ana Irmã", [2], {
+      nascimento: "2014-03-10",
+      responsavelId: resp.id,
+    });
+    const c = await bolsista("Caio Irmão", [4], {
+      nascimento: "2015-03-10",
+      responsavelId: resp.id,
+    });
+    await marcarPresenca(banco.db, {
+      aulaId: aulaDoDia.get("2026-11-26") ?? "",
+      pessoaId: c.id,
+      por: adm.id,
+    });
+    expect(erros(await preparar([a.id, c.id], "bolsista_ausente"))).toEqual({
+      _: FORA_DA_LISTA,
+    });
+    expect((await preparar([a.id], "bolsista_ausente")).ok).toBe(true);
+  });
+
+  it("não quer contato continua com a mensagem do bloqueio, mesmo vindo", async () => {
+    const b = await bolsista("Bloqueado Vindo");
+    await marcarPresenca(banco.db, {
+      aulaId: aulaDoDia.get("2026-11-24") ?? "",
+      pessoaId: b.id,
+      por: adm.id,
+    });
+    await banco.sql(
+      `insert into bloqueios_contato (pessoa_id, marcado_por) values ('${b.id}', '${adm.id}')`,
+    );
+    expect(erros(await preparar([b.id], "bolsista_ausente"))).toEqual({
+      _: "Esta pessoa pediu para não ser contatada.",
+    });
+  });
+
+  it("registrar recusa quem voltou a vir e não grava o contato", async () => {
+    const b = await bolsista("Registro Vindo");
+    await marcarPresenca(banco.db, {
+      aulaId: aulaDoDia.get("2026-11-24") ?? "",
+      pessoaId: b.id,
+      por: adm.id,
+    });
+    const r = await registrarContato(
+      banco.db,
+      {
+        alunoIds: [b.id],
+        lista: "bolsista_ausente",
+        janela: 30,
+        feitoPor: adm.id,
+        visto: null,
+        confirmar: true,
+      },
+      HOJE,
+    );
+    expect(erros(r)).toEqual({ _: FORA_DA_LISTA });
+    expect(
+      await banco.db.select().from(contatos).where(eq(contatos.alunoId, b.id)),
+    ).toHaveLength(0);
   });
 });
 

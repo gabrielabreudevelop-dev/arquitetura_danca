@@ -5,7 +5,8 @@
  * mostra mensagens fixas desta tabela, nunca texto vindo do endereço.
  */
 import { MENSAGEM_ENCERRADO } from "../alunos/cadastro";
-import { lerFiltrosContatos, urlContatos } from "../alunos/listas";
+import { type Janela, lerFiltrosContatos, urlContatos } from "../alunos/listas";
+import { MENSAGEM_NAO_BOLSISTA } from "../bolsistas/cadastro";
 import { ehUuid } from "../cadastros/comum";
 import type { Resultado } from "../cadastros/resultado";
 import {
@@ -13,6 +14,8 @@ import {
   MENSAGEM_BLOQUEADO,
   MENSAGEM_BOLSISTA_INATIVO,
   MENSAGEM_CONTATOS_DIFERENTES,
+  MENSAGEM_CONTATOS_DIFERENTES_BOLSISTAS,
+  MENSAGEM_FORA_DA_LISTA,
   MENSAGEM_RECENTE,
   MENSAGEM_SEM_WHATSAPP,
 } from "./contatos";
@@ -20,13 +23,16 @@ import { ehListaDeBolsista, LISTAS, type ListaContato } from "./valores";
 
 const ERROS = {
   aluno: MENSAGEM_ALUNO_NAO_ENCONTRADO,
+  bolsista: MENSAGEM_NAO_BOLSISTA,
   lista:
     "Não deu para saber de qual lista é o contato. Recarregue a página e tente de novo.",
   contatos: MENSAGEM_CONTATOS_DIFERENTES,
+  contatos_bolsistas: MENSAGEM_CONTATOS_DIFERENTES_BOLSISTAS,
   bloqueado: MENSAGEM_BLOQUEADO,
   sem_whatsapp: MENSAGEM_SEM_WHATSAPP,
   encerrado: MENSAGEM_ENCERRADO,
   inativo: MENSAGEM_BOLSISTA_INATIVO,
+  fora_da_lista: MENSAGEM_FORA_DA_LISTA,
   recente: MENSAGEM_RECENTE,
   erro: "Não foi possível abrir o WhatsApp. Tente de novo.",
 } as const;
@@ -74,6 +80,8 @@ export type PedidoAbrir =
       tipo: "ok";
       alunoIds: string[];
       lista: ListaContato;
+      /** Janela da lista que a tela mostrava (7, 15 ou 30; inválida vira a padrão da lista). */
+      janela: Janela;
       /** Último grupo de contato que a tela mostrou para a pessoa (R17). */
       visto: string | null;
       /** "Chamar mesmo assim": ignora o contato recente de outra pessoa. */
@@ -96,10 +104,15 @@ export function validarPedidoAbrir(
   const lista = LISTAS.find((l) => l === form.get("lista"));
   if (!lista) return { tipo: "erro", codigo: "lista" };
   const visto = String(form.get("visto") ?? "").trim();
+  const janela = form.get("janela");
   return {
     tipo: "ok",
     alunoIds: [...new Set(alunoIds.map((id) => id.toLowerCase()))],
     lista,
+    janela: lerFiltrosContatos({
+      lista,
+      janela: typeof janela === "string" ? janela : undefined,
+    }).janela,
     visto: ehUuid(visto) ? visto.toLowerCase() : null,
     confirmar: form.get("confirmar") === "1",
   };
@@ -186,6 +199,7 @@ export async function responderAbrir(
     registrar: (a: {
       alunoIds: string[];
       lista: ListaContato;
+      janela: Janela;
       feitoPor: string;
       visto: string | null;
       confirmar: boolean;
@@ -201,6 +215,7 @@ export async function responderAbrir(
     const resultado = await dependencias.registrar({
       alunoIds: pedido.alunoIds,
       lista: pedido.lista,
+      janela: pedido.janela,
       feitoPor: sessao.pessoaId,
       visto: pedido.visto,
       confirmar: pedido.confirmar,

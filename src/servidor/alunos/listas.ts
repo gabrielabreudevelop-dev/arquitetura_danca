@@ -241,7 +241,7 @@ export function contarDash(
 }
 
 /** Janela padrão da aba "Bolsistas sem vir" (as de aluno usam 7). */
-const JANELA_PADRAO_BOLSISTAS: Janela = 15;
+export const JANELA_PADRAO_BOLSISTAS: Janela = 15;
 
 export type FiltrosContatos = {
   lista: "vence_em_breve" | "vencido" | "bolsista_ausente";

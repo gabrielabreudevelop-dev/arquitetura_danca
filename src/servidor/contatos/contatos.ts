@@ -12,8 +12,10 @@ import {
   type PessoaDeContato,
 } from "../alunos/carga";
 import { type DataIso, formatarDia } from "../alunos/datas";
+import { JANELA_PADRAO_BOLSISTAS, type Janela } from "../alunos/listas";
 import type { Banco } from "../banco/cliente";
 import { bloqueiosContato, contatos, pessoas } from "../banco/esquema";
+import { MENSAGEM_NAO_BOLSISTA } from "../bolsistas/cadastro";
 import { carregarBolsistas } from "../bolsistas/carga";
 import { diasPorExtenso } from "../bolsistas/textos";
 import { ehUuid, executarTraduzindo } from "../cadastros/comum";
@@ -40,12 +42,18 @@ import {
 export const MENSAGEM_ALUNO_NAO_ENCONTRADO = "Aluno não encontrado.";
 export const MENSAGEM_CONTATOS_DIFERENTES =
   "Esses alunos não têm o mesmo contato.";
+export const MENSAGEM_CONTATOS_DIFERENTES_BOLSISTAS =
+  "Esses bolsistas não têm o mesmo contato.";
 export const MENSAGEM_BLOQUEADO = "Esta pessoa pediu para não ser contatada.";
 export const MENSAGEM_SEM_WHATSAPP = "Cadastre um WhatsApp antes de chamar.";
 export const MENSAGEM_RECENTE =
   "Outra pessoa da equipe já chamou este contato hoje. Confira antes de chamar de novo.";
 export const MENSAGEM_BOLSISTA_INATIVO =
   "Este bolsista está inativo. Reative antes.";
+/** A tela mostrou a lista "sem vir" antes de o bolsista voltar a vir. */
+export const MENSAGEM_FORA_DA_LISTA =
+  "Este bolsista voltou a vir. A lista foi atualizada.";
+
 const MENSAGEM_RESULTADO = "Escolha um resultado da lista.";
 const MENSAGEM_CONTATO_NAO_ENCONTRADO = "Contato não encontrado.";
 const MENSAGEM_PESSOA_NAO_ENCONTRADA = "Pessoa não encontrada.";
@@ -83,24 +91,36 @@ type Contatados = {
 
 /**
  * Carrega, na ordem pedida, os alunos ou os bolsistas (conforme a lista) e
- * confere que existem e podem ser contatados. Daqui em diante o fluxo é o
- * mesmo para os dois.
+ * confere que existem e podem ser contatados. Na lista "sem vir"
+ * (`bolsista_ausente`), cada bolsista ainda precisa estar sem vir na `janela`
+ * agora: a tela pode ter sido aberta antes de uma chamada que o marcou
+ * presente. Daqui em diante o fluxo é o mesmo para os dois.
  */
 async function carregarContatados(
   db: Banco,
   lista: ListaContato,
   ids: string[],
   hoje: DataIso,
+  janela: Janela,
 ): Promise<Resultado<Contatados>> {
   if (ehListaDeBolsista(lista)) {
     const carregados = await carregarBolsistas(db, hoje, { ids });
     const porId = new Map(carregados.map((b) => [b.id, b]));
     const bolsistas = ids.flatMap((id) => porId.get(id) ?? []);
     if (bolsistas.length !== ids.length) {
-      return falha(MENSAGEM_ALUNO_NAO_ENCONTRADO);
+      return falha(MENSAGEM_NAO_BOLSISTA);
     }
     if (bolsistas.some((b) => !b.ativo)) {
       return falha(MENSAGEM_BOLSISTA_INATIVO);
+    }
+    if (lista === "bolsista_ausente") {
+      // O bloqueio fica com a mensagem dele, mesmo para quem voltou a vir.
+      if (bolsistas.some((b) => b.contato.naoQuerContato)) {
+        return falha(MENSAGEM_BLOQUEADO);
+      }
+      if (bolsistas.some((b) => !b.semVir[janela].semVir)) {
+        return falha(MENSAGEM_FORA_DA_LISTA);
+      }
     }
     return {
       ok: true,
@@ -157,7 +177,7 @@ async function carregarContatados(
  */
 export async function prepararContato(
   db: Banco,
-  a: { alunoIds: string[]; lista: ListaContato },
+  a: { alunoIds: string[]; lista: ListaContato; janela?: Janela },
   hoje: DataIso,
 ): Promise<
   Resultado<{
@@ -167,17 +187,30 @@ export async function prepararContato(
     url: string;
   }>
 > {
+  const deBolsista = ehListaDeBolsista(a.lista);
   const ids = distintos(a.alunoIds.map((id) => id.toLowerCase()));
   if (ids.length === 0 || !ids.every(ehUuid)) {
-    return falha(MENSAGEM_ALUNO_NAO_ENCONTRADO);
+    return falha(
+      deBolsista ? MENSAGEM_NAO_BOLSISTA : MENSAGEM_ALUNO_NAO_ENCONTRADO,
+    );
   }
-  const contatados = await carregarContatados(db, a.lista, ids, hoje);
+  const contatados = await carregarContatados(
+    db,
+    a.lista,
+    ids,
+    hoje,
+    a.janela ?? JANELA_PADRAO_BOLSISTAS,
+  );
   if (!contatados.ok) return contatados;
   const { contatos: pessoasDeContato, finalidade, valores } = contatados.valor;
 
   const pessoa = pessoasDeContato[0];
   if (pessoasDeContato.some((c) => c.pessoaId !== pessoa.pessoaId)) {
-    return falha(MENSAGEM_CONTATOS_DIFERENTES);
+    return falha(
+      deBolsista
+        ? MENSAGEM_CONTATOS_DIFERENTES_BOLSISTAS
+        : MENSAGEM_CONTATOS_DIFERENTES,
+    );
   }
   if (pessoa.naoQuerContato) return falha(MENSAGEM_BLOQUEADO);
   if (!pessoa.whatsapp) return falha(MENSAGEM_SEM_WHATSAPP);
@@ -204,6 +237,8 @@ export async function prepararContato(
 type PedidoContato = {
   alunoIds: string[];
   lista: ListaContato;
+  /** Janela da lista "sem vir" que a tela mostrava (padrão 15). */
+  janela?: Janela;
   feitoPor: string;
   /** Último grupo de contato que a tela mostrou para a pessoa de contato. */
   visto?: string | null;
