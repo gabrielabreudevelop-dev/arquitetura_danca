@@ -8,6 +8,7 @@ import {
   situacoesBolsista,
 } from "@/servidor/banco/esquema";
 import { alterarDias } from "@/servidor/bolsistas/cadastro";
+import { desfazerNaoHouve, marcarNaoHouve } from "@/servidor/bolsistas/chamada";
 import { obterFichaBolsista } from "@/servidor/bolsistas/ficha";
 import { criarBancoDeTeste } from "../apoio/banco";
 import {
@@ -142,6 +143,45 @@ describe("obterFichaBolsista", () => {
     expect(ficha?.meses).toEqual([
       { mes: "nov", combinados: 0, presentes: 0, fora: 0 },
     ]);
+  });
+
+  it("meses: 'não houve' desfeito sem chamada salva não vira falta", async () => {
+    // Quartas: nenhuma outra aula deste arquivo cai em quarta.
+    const turma = await criarTurma(banco.db, { dias: [3] });
+    const b = await criarBolsista(banco.db, {
+      criadoPor: adm.id,
+      dias: [3],
+      desde: "2026-11-01",
+    });
+    ok(
+      await marcarNaoHouve(
+        banco.db,
+        {
+          turmaId: turma.id,
+          data: "2026-11-25",
+          motivo: "feriado",
+          feitoPor: adm.id,
+        },
+        HOJE,
+      ),
+    );
+    ok(
+      await desfazerNaoHouve(
+        banco.db,
+        { turmaId: turma.id, data: "2026-11-25", feitoPor: adm.id },
+        HOJE,
+      ),
+    );
+    const ficha = await obterFichaBolsista(banco.db, b.id, HOJE);
+    expect(ficha?.meses).toEqual([
+      { mes: "nov", combinados: 0, presentes: 0, fora: 0 },
+    ]);
+    expect(ficha?.bolsista.mes).toEqual({
+      combinados: 0,
+      presentes: 0,
+      fora: 0,
+    });
+    expect(ficha?.bolsista.semVir[7].semVir).toBe(false);
   });
 
   it("presenças: rótulo da turma, mais recentes primeiro, no máximo 20, sem desmarcadas", async () => {

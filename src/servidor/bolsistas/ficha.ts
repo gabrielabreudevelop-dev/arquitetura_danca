@@ -35,6 +35,7 @@ import {
 import { ehUuid } from "../cadastros/comum";
 import { LISTAS_BOLSISTA } from "../contatos/valores";
 import { type BolsistaCarregado, carregarBolsistas } from "./carga";
+import { comChamadaSalva } from "./chamada";
 import { type Dia, frequencia } from "./regras";
 import { diasCurtos } from "./textos";
 
@@ -120,7 +121,7 @@ export async function obterFichaBolsista(
   const linhasAulas = await db
     .selectDistinct({ data: aulas.data })
     .from(aulas)
-    .where(and(naFaixa, eq(aulas.situacao, "realizada")));
+    .where(and(naFaixa, comChamadaSalva()));
   const linhasPresencas = await db
     .selectDistinct({ data: aulas.data })
     .from(presencasAula)

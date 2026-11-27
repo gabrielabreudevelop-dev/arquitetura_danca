@@ -107,12 +107,22 @@ export const aulas = pgTable(
       .defaultNow(),
     alteradoPor: uuid("alterado_por").references(() => pessoas.id),
     alteradoEm: timestamp("alterado_em", { withTimezone: true }),
+    /**
+     * Último salvamento da chamada (só `salvarChamada` grava). Aula realizada
+     * sem chamada salva (ex.: "não houve" desfeito) não é dia com chamada.
+     */
+    chamadaSalvaEm: timestamp("chamada_salva_em", { withTimezone: true }),
+    chamadaSalvaPor: uuid("chamada_salva_por").references(() => pessoas.id),
   },
   (t) => [
     uniqueIndex("aulas_turma_data_unica").on(t.turmaId, t.data),
     check(
       "aulas_motivo_quando_nao_houve",
       sql`${t.situacao} <> 'nao_houve' or (${t.motivo} is not null and length(trim(${t.motivo})) > 0)`,
+    ),
+    check(
+      "aulas_chamada_salva_completa",
+      sql`(${t.chamadaSalvaEm} is null) = (${t.chamadaSalvaPor} is null)`,
     ),
   ],
 );

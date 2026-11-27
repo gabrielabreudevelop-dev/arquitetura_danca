@@ -3,7 +3,15 @@
  * extras e disponíveis), salvar a chamada com controle de versão e "não houve aula".
  */
 
-import { and, eq, inArray, isNull, sql } from "drizzle-orm";
+import {
+  and,
+  eq,
+  inArray,
+  isNotNull,
+  isNull,
+  type SQL,
+  sql,
+} from "drizzle-orm";
 import { rotuloDaTurma } from "../alunos/carga";
 import { type DataIso, diaDaSemana, ehDataIso } from "../alunos/datas";
 import type { Banco } from "../banco/cliente";
@@ -62,6 +70,29 @@ export type LinhaChamada = {
 };
 
 type AulaLinha = typeof aulas.$inferSelect;
+
+/**
+ * Condição de "dia com chamada": aula realizada e com chamada salva. Feriado
+ * ou esquecimento (sem chamada, ou "não houve" desfeito) não vira falta.
+ */
+export function comChamadaSalva(): SQL {
+  return and(
+    eq(aulas.situacao, "realizada"),
+    isNotNull(aulas.chamadaSalvaEm),
+  ) as SQL;
+}
+
+/**
+ * Situação que a tela mostra: aula realizada sem chamada salva (ex.: "não
+ * houve" desfeito) ainda está sem chamada — não conta como dia com chamada.
+ */
+function situacaoDaAula(aula: AulaLinha | null | undefined): SituacaoChamada {
+  if (!aula) return "sem_chamada";
+  if (aula.situacao === "realizada" && aula.chamadaSalvaEm === null) {
+    return "sem_chamada";
+  }
+  return aula.situacao;
+}
 
 function erroDeData(data: string, hoje: DataIso): string | null {
   if (!ehDataIso(data)) return MENSAGEM_DATA_INVALIDA;
@@ -173,7 +204,7 @@ export async function turmasDoDia(
           dias: diasPorTurma.get(t.id) ?? [],
           horarioInicio: t.horarioInicio,
         }),
-        situacao: (aula?.situacao ?? "sem_chamada") as SituacaoChamada,
+        situacao: situacaoDaAula(aula),
         presentes: aula ? (presentesPorAula.get(aula.id) ?? 0) : 0,
         motivo: aula?.motivo ?? null,
       };
@@ -285,7 +316,7 @@ export async function obterChamada(
     valor: {
       aulaId: aula?.id ?? null,
       versao: aula?.versao ?? 0,
-      situacao: aula?.situacao ?? "sem_chamada",
+      situacao: situacaoDaAula(aula),
       motivo: aula?.motivo ?? null,
       combinados: porNome(combinados),
       extras: porNome(extras),
@@ -344,10 +375,8 @@ export async function salvarChamada(
           data: a.data,
           situacao: "realizada",
           criadoPor: a.feitoPor,
-          // Salvar já conta como alteração: é o que distingue uma chamada
-          // vazia confirmada de uma aula que nunca teve chamada salva.
-          alteradoPor: a.feitoPor,
-          alteradoEm: new Date(),
+          chamadaSalvaPor: a.feitoPor,
+          chamadaSalvaEm: new Date(),
         });
         if (aula.situacao === "nao_houve") {
           throw new ErrosDeFormulario({ _: MENSAGEM_NAO_HOUVE });
@@ -357,10 +386,6 @@ export async function salvarChamada(
           throw new ErrosDeFormulario({ _: MENSAGEM_CHAMADA_MUDOU });
         }
 
-        const historico = await tx
-          .select({ pessoaId: presencasAula.pessoaId })
-          .from(presencasAula)
-          .where(eq(presencasAula.aulaId, aula.id));
         const vivas = new Set(
           (
             await tx
@@ -374,12 +399,12 @@ export async function salvarChamada(
               )
           ).map((p) => p.pessoaId),
         );
+        // Lista vazia pede confirmação na primeira chamada (aula sem chamada
+        // salva, mesmo que já exista por "não houve" desfeito) e ao esvaziar.
         if (
           pedidos.length === 0 &&
           !a.confirmarVazia &&
-          (vivas.size > 0 ||
-            criada ||
-            (historico.length === 0 && aula.alteradoEm === null))
+          (vivas.size > 0 || criada || aula.chamadaSalvaEm === null)
         ) {
           throw new ErrosDeFormulario({ _: MENSAGEM_CHAMADA_VAZIA });
         }
@@ -444,6 +469,8 @@ export async function salvarChamada(
               versao,
               alteradoPor: a.feitoPor,
               alteradoEm: sql`now()`,
+              chamadaSalvaPor: a.feitoPor,
+              chamadaSalvaEm: sql`now()`,
             })
             .where(eq(aulas.id, aula.id));
         }

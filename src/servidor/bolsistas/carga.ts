@@ -26,6 +26,7 @@ import {
   pessoaDeContato,
   type UltimoContato,
 } from "../contatos/pessoa-de-contato";
+import { comChamadaSalva } from "./chamada";
 import {
   acordoVigenteEm,
   ativoEm,
@@ -54,7 +55,7 @@ export type BolsistaCarregado = {
   historico: MudancaSituacao[];
   /** Dias do acordo vigente hoje (0 = domingo), ou nulo se ainda não há acordo. */
   diasHoje: number[] | null;
-  /** Dias com aula realizada ou presença, do início da janela de carga até hoje. */
+  /** Dias com chamada salva ou presença, do início da janela de carga até hoje. */
   dias: Map<DataIso, Dia>;
   responsavel: AlunoCarregado["responsavel"];
   contato: PessoaDeContato;
@@ -153,11 +154,11 @@ export async function carregarBolsistas(
 
   const inicio = inicioDaCarga(hoje);
   const noPeriodo = and(gte(aulas.data, inicio), lte(aulas.data, hoje));
-  // Dias em que alguma turma teve aula realizada (vale para todos os bolsistas).
+  // Dias em que alguma turma teve chamada salva (vale para todos os bolsistas).
   const linhasAulas = await db
     .select({ data: aulas.data })
     .from(aulas)
-    .where(and(noPeriodo, eq(aulas.situacao, "realizada")));
+    .where(and(noPeriodo, comChamadaSalva()));
   const linhasPresencas = await db
     .select({ pessoaId: presencasAula.pessoaId, data: aulas.data })
     .from(presencasAula)

@@ -17,6 +17,7 @@ import {
 import { criarBancoDeTeste } from "../apoio/banco";
 import {
   criarAdministracao,
+  criarAluno,
   criarAula,
   criarBolsista,
   criarTurma,
@@ -218,17 +219,39 @@ describe("salvarChamada", () => {
       .from(aulas)
       .where(eq(aulas.id, aulaId));
     expect(aula.situacao).toBe("realizada");
+    expect(aula.chamadaSalvaPor).toBe(adm.id);
+    expect(aula.chamadaSalvaEm).not.toBeNull();
     expect((await viva(aulaId)).length).toBe(2);
 
-    const r2 = await salvar(turma.id, TER, [a.id], 1);
+    // Cada salvamento grava quem salvou a chamada por último.
+    const outro = await criarAdministracao(banco.db);
+    const r2 = await salvarChamada(
+      banco.db,
+      {
+        turmaId: turma.id,
+        data: TER,
+        presentes: [a.id],
+        versao: 1,
+        feitoPor: outro.id,
+      },
+      HOJE,
+    );
     expect(r2.ok && r2.valor.versao).toBe(2);
+    const [depois] = await banco.db
+      .select()
+      .from(aulas)
+      .where(eq(aulas.id, aulaId));
+    expect(depois.chamadaSalvaPor).toBe(outro.id);
+    expect(depois.chamadaSalvaEm?.getTime()).toBeGreaterThanOrEqual(
+      aula.chamadaSalvaEm?.getTime() ?? Number.POSITIVE_INFINITY,
+    );
     const todas = await banco.db
       .select()
       .from(presencasAula)
       .where(eq(presencasAula.pessoaId, b.id));
     expect(todas).toHaveLength(1);
     expect(todas[0].desmarcadaEm).not.toBeNull();
-    expect(todas[0].desmarcadaPor).toBe(adm.id);
+    expect(todas[0].desmarcadaPor).toBe(outro.id);
 
     const r3 = await salvar(turma.id, TER, [a.id, b.id], 2);
     expect(r3.ok && r3.valor.versao).toBe(3);
@@ -251,6 +274,7 @@ describe("salvarChamada", () => {
     if (!velha.ok) expect(velha.erros._).toBe(MENSAGEM_CHAMADA_MUDOU);
     const velha2 = await salvar(turma.id, TER, [b.id], 5);
     expect(velha2.ok).toBe(false);
+    if (!velha2.ok) expect(velha2.erros._).toBe(MENSAGEM_CHAMADA_MUDOU);
     if (r1.ok) {
       const v = await viva(r1.valor.aulaId);
       expect(v.map((p) => p.pessoaId)).toEqual([a.id]);
@@ -268,6 +292,17 @@ describe("salvarChamada", () => {
     expect([x.ok, y.ok].sort()).toEqual([false, true]);
     const falha = x.ok ? y : x;
     if (!falha.ok) expect(falha.erros._).toBe(MENSAGEM_CHAMADA_MUDOU);
+    // Só a presença da transação vencedora existe (nem viva nem desmarcada).
+    const vencedor = x.ok ? a : b;
+    const perdedor = x.ok ? b : a;
+    const ganhou = x.ok ? x : y;
+    if (!ganhou.ok) throw new Error("nenhuma chamada salva");
+    const todas = await banco.db
+      .select()
+      .from(presencasAula)
+      .where(eq(presencasAula.aulaId, ganhou.valor.aulaId));
+    expect(todas.map((p) => p.pessoaId)).toEqual([vencedor.id]);
+    expect(todas.some((p) => p.pessoaId === perdedor.id)).toBe(false);
 
     const atual = await obter(turma.id, TER);
     const [p, q] = await Promise.all([
@@ -275,6 +310,35 @@ describe("salvarChamada", () => {
       salvar(turma.id, TER, [], atual.versao, { confirmarVazia: true }),
     ]);
     expect([p.ok, q.ok].sort()).toEqual([false, true]);
+    const perdeu = p.ok ? q : p;
+    if (!perdeu.ok) expect(perdeu.erros._).toBe(MENSAGEM_CHAMADA_MUDOU);
+    const vivas = (await viva(ganhou.valor.aulaId)).map((v) => v.pessoaId);
+    // Ou valeu a lista com os dois, ou a vazia: nunca uma mistura das duas.
+    if (p.ok) expect(vivas.sort()).toEqual([a.id, b.id].sort());
+    else expect(vivas).toEqual([]);
+  });
+
+  it("acrescentar um disponível vira extra presente", async () => {
+    const turma = await turmaTerQui();
+    const combinado = await bolsista({ dias: [2] });
+    const disponivel = await bolsista({ dias: [4] });
+    const antes = await obter(turma.id, TER);
+    expect(antes.disponiveis.map((d) => d.pessoaId)).toContain(disponivel.id);
+    const r = await salvar(turma.id, TER, [combinado.id, disponivel.id], 0);
+    expect(r.ok).toBe(true);
+    const depois = await obter(turma.id, TER);
+    expect(depois.extras.find((x) => x.pessoaId === disponivel.id)).toEqual({
+      pessoaId: disponivel.id,
+      nome: expect.any(String),
+      preferencia: "os_dois",
+      presente: true,
+    });
+    expect(depois.disponiveis.map((d) => d.pessoaId)).not.toContain(
+      disponivel.id,
+    );
+    expect(
+      depois.combinados.find((x) => x.pessoaId === combinado.id)?.presente,
+    ).toBe(true);
   });
 
   it("lista vazia exige confirmação na primeira chamada, sem criar a aula", async () => {
@@ -317,7 +381,6 @@ describe("salvarChamada", () => {
 
   it("só bolsistas, e só ativos para quem entra", async () => {
     const turma = await turmaTerQui();
-    const { criarAluno } = await import("../apoio/fabricas");
     const aluno = await criarAluno(banco.db);
     const r = await salvar(turma.id, TER, [aluno.id], 0);
     expect(r.ok).toBe(false);
@@ -439,7 +502,7 @@ describe("não houve aula", () => {
     if (!r.ok) expect(r.erros.motivo).toBe("Informe o motivo.");
   });
 
-  it("cria a aula se não existir, e desfazer volta a realizada", async () => {
+  it("cria a aula se não existir, e desfazer volta a ficar sem chamada", async () => {
     const turma = await turmaTerQui();
     const r = await marcarNaoHouve(
       banco.db,
@@ -459,9 +522,49 @@ describe("não houve aula", () => {
     );
     expect(d.ok).toBe(true);
     const c2 = await obter(turma.id, TER);
-    expect(c2.situacao).toBe("realizada");
+    expect(c2.situacao).toBe("sem_chamada");
     expect(c2.motivo).toBeNull();
     expect(c2.versao).toBe(2);
+    const [aula] = await banco.db
+      .select()
+      .from(aulas)
+      .where(eq(aulas.turmaId, turma.id));
+    expect(aula.chamadaSalvaEm).toBeNull();
+    expect(aula.chamadaSalvaPor).toBeNull();
+
+    const dia = await turmasDoDia(banco.db, TER, HOJE);
+    expect(
+      dia.ok && dia.valor.find((t) => t.turmaId === turma.id)?.situacao,
+    ).toBe("sem_chamada");
+  });
+
+  it("depois de marcar e desfazer, a primeira chamada vazia ainda pede confirmação", async () => {
+    const turma = await turmaTerQui();
+    const m = await marcarNaoHouve(
+      banco.db,
+      { turmaId: turma.id, data: TER, motivo: "feriado", feitoPor: adm.id },
+      HOJE,
+    );
+    expect(m.ok).toBe(true);
+    const d = await desfazerNaoHouve(
+      banco.db,
+      { turmaId: turma.id, data: TER, feitoPor: adm.id },
+      HOJE,
+    );
+    expect(d.ok && d.valor.versao).toBe(2);
+    const vazia = await salvar(turma.id, TER, [], 2);
+    expect(vazia.ok).toBe(false);
+    if (!vazia.ok) expect(vazia.erros._).toBe(MENSAGEM_CHAMADA_VAZIA);
+
+    const confirmada = await salvar(turma.id, TER, [], 2, {
+      confirmarVazia: true,
+    });
+    expect(confirmada.ok && confirmada.valor.versao).toBe(3);
+    const c = await obter(turma.id, TER);
+    expect(c.situacao).toBe("realizada");
+    // Chamada vazia já salva e confirmada: resalvar vazia não pergunta de novo.
+    const de = await salvar(turma.id, TER, [], 3);
+    expect(de.ok).toBe(true);
   });
 
   it("marcar em aula existente sem presença incrementa a versão", async () => {
@@ -483,6 +586,24 @@ describe("não houve aula", () => {
       .where(eq(aulas.turmaId, turma.id));
     expect(aula.alteradoPor).toBe(adm.id);
     expect(aula.alteradoEm).not.toBeNull();
+    // Marcar "não houve" não mexe no registro da chamada salva.
+    const salvaEm = aula.chamadaSalvaEm;
+    expect(salvaEm).not.toBeNull();
+    expect(aula.chamadaSalvaPor).toBe(adm.id);
+    const outro = await criarAdministracao(banco.db);
+    const d = await desfazerNaoHouve(
+      banco.db,
+      { turmaId: turma.id, data: TER, feitoPor: outro.id },
+      HOJE,
+    );
+    expect(d.ok).toBe(true);
+    const [depois] = await banco.db
+      .select()
+      .from(aulas)
+      .where(eq(aulas.turmaId, turma.id));
+    expect(depois.chamadaSalvaEm).toEqual(salvaEm);
+    expect(depois.chamadaSalvaPor).toBe(adm.id);
+    expect(depois.alteradoPor).toBe(outro.id);
   });
 
   it("desfazer sem estar marcada recusa", async () => {
@@ -493,6 +614,10 @@ describe("não houve aula", () => {
       HOJE,
     );
     expect(d.ok).toBe(false);
+    if (!d.ok)
+      expect(d.erros._).toBe(
+        "Esta aula não está marcada como “não houve aula”.",
+      );
   });
 });
 

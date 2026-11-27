@@ -23,7 +23,7 @@ export type MudancaSituacao = {
   criadoEm: Date;
 };
 
-/** comChamada: alguma aula realizada no dia; presente: presença viva em alguma aula do dia. */
+/** comChamada: alguma aula realizada com chamada salva no dia; presente: presença viva em alguma aula do dia. */
 export type Dia = { data: DataIso; comChamada: boolean; presente: boolean };
 
 export type EntradaFrequencia = {

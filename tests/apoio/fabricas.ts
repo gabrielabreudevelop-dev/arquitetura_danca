@@ -248,7 +248,11 @@ export async function criarBolsista(
   return pessoa;
 }
 
-/** Aula de uma turma numa data (realizada, salvo indicação em contrário). */
+/**
+ * Aula de uma turma numa data (realizada, salvo indicação em contrário).
+ * Aula realizada já vem com chamada salva (por quem criou), a não ser que
+ * `chamadaSalva: false`.
+ */
 export async function criarAula(
   db: Banco,
   valores: {
@@ -257,11 +261,21 @@ export async function criarAula(
     situacao?: (typeof aulas.$inferInsert)["situacao"];
     motivo?: string;
     criadoPor: string;
+    chamadaSalva?: boolean;
   },
 ) {
+  const { chamadaSalva, ...resto } = valores;
+  const situacao = resto.situacao ?? "realizada";
+  const salva = chamadaSalva ?? situacao === "realizada";
   const [aula] = await db
     .insert(aulas)
-    .values({ situacao: "realizada", ...valores })
+    .values({
+      ...resto,
+      situacao,
+      ...(salva
+        ? { chamadaSalvaEm: new Date(), chamadaSalvaPor: resto.criadoPor }
+        : {}),
+    })
     .returning();
   return aula;
 }

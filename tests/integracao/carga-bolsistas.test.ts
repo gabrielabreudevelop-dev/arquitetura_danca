@@ -3,6 +3,11 @@ import { carregarAlunos } from "@/servidor/alunos/carga";
 import { contatos } from "@/servidor/banco/esquema";
 import { alterarDias, mudarSituacao } from "@/servidor/bolsistas/cadastro";
 import { carregarBolsistas } from "@/servidor/bolsistas/carga";
+import {
+  desfazerNaoHouve,
+  marcarNaoHouve,
+  salvarChamada,
+} from "@/servidor/bolsistas/chamada";
 import { criarBancoDeTeste } from "../apoio/banco";
 import {
   criarAdministracao,
@@ -136,6 +141,57 @@ describe("carregarBolsistas", () => {
     // Dia com aula "nao_houve" não é dia com chamada.
     expect(c.dias.get("2026-11-17")?.comChamada ?? false).toBe(false);
     expect(c.dias.get("2026-11-03")?.presente).toBe(true);
+  });
+
+  it("'não houve' desfeito sem chamada salva não conta como dia com chamada", async () => {
+    // Quartas: nenhuma outra aula deste arquivo cai em quarta.
+    const turma = await criarTurma(banco.db, { dias: [3] });
+    const b = await criarBolsista(banco.db, {
+      criadoPor: adm.id,
+      dias: [3],
+      desde: "2026-11-01",
+    });
+    // qua 18 (fora da janela de 7 dias): chamada vazia salva e confirmada.
+    ok(
+      await salvarChamada(
+        banco.db,
+        {
+          turmaId: turma.id,
+          data: "2026-11-18",
+          presentes: [],
+          versao: 0,
+          confirmarVazia: true,
+          feitoPor: adm.id,
+        },
+        HOJE,
+      ),
+    );
+    // qua 25: marcou "não houve" por engano e desfez; ninguém fez chamada.
+    ok(
+      await marcarNaoHouve(
+        banco.db,
+        {
+          turmaId: turma.id,
+          data: "2026-11-25",
+          motivo: "feriado",
+          feitoPor: adm.id,
+        },
+        HOJE,
+      ),
+    );
+    ok(
+      await desfazerNaoHouve(
+        banco.db,
+        { turmaId: turma.id, data: "2026-11-25", feitoPor: adm.id },
+        HOJE,
+      ),
+    );
+    const [c] = await carregarBolsistas(banco.db, HOJE, { ids: [b.id] });
+    expect(c.mes).toEqual({ combinados: 1, presentes: 0, fora: 0 });
+    expect(c.dias.get("2026-11-25")?.comChamada ?? false).toBe(false);
+    expect(c.dias.get("2026-11-18")?.comChamada).toBe(true);
+    expect(c.semVir[7].semVir).toBe(false);
+    expect(c.semVir[15].semVir).toBe(true);
   });
 
   it("dias cobre o mês anterior inteiro quando mais antigo que hoje − 30", async () => {
