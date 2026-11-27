@@ -421,7 +421,9 @@ describe("alterarDias", () => {
       { pessoaId: id, dias: [4, 2], vigenteDesde: HOJE, feitoPor: adm.id },
       HOJE,
     );
-    expect(!r.ok && r.erros.dias).toBe("Os dias são os mesmos de agora.");
+    expect(!r.ok && r.erros.dias).toBe(
+      "Esses já são os dias combinados nessa data.",
+    );
     expect(await acordos(id)).toHaveLength(1);
   });
 });

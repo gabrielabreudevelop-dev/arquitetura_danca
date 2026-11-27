@@ -31,16 +31,16 @@ describe("contar", () => {
 });
 
 describe("textoDaContagem", () => {
-  it("plural e singular", () => {
+  it("como na spec: Vieram N · conduzir X · ser conduzido Y · os dois Z", () => {
     expect(
       textoDaContagem({ vieram: 4, conduzir: 2, ser_conduzido: 2, os_dois: 0 }),
-    ).toBe("4 vieram · 2 conduzem · 2 são conduzidos · 0 os dois");
+    ).toBe("Vieram 4 · conduzir 2 · ser conduzido 2 · os dois 0");
     expect(
       textoDaContagem({ vieram: 3, conduzir: 1, ser_conduzido: 1, os_dois: 1 }),
-    ).toBe("3 vieram · 1 conduz · 1 é conduzido · 1 os dois");
+    ).toBe("Vieram 3 · conduzir 1 · ser conduzido 1 · os dois 1");
     expect(
       textoDaContagem({ vieram: 1, conduzir: 0, ser_conduzido: 0, os_dois: 1 }),
-    ).toBe("1 veio · 0 conduzem · 0 são conduzidos · 1 os dois");
+    ).toBe("Vieram 1 · conduzir 0 · ser conduzido 0 · os dois 1");
   });
 
   it("ninguém marcado", () => {

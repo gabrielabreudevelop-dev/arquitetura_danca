@@ -63,14 +63,14 @@ export function contar(marcados: { preferencia: Preferencia }[]): Contagem {
   return c;
 }
 
-/** "3 vieram · 1 conduz · 1 é conduzido · 1 os dois". */
+/** "Vieram 3 · conduzir 1 · ser conduzido 1 · os dois 1" (spec, seção 7). */
 export function textoDaContagem(c: Contagem): string {
   if (c.vieram === 0) return "Ninguém marcado";
   return [
-    `${c.vieram} ${c.vieram === 1 ? "veio" : "vieram"}`,
-    `${c.conduzir} ${c.conduzir === 1 ? "conduz" : "conduzem"}`,
-    `${c.ser_conduzido} ${c.ser_conduzido === 1 ? "é conduzido" : "são conduzidos"}`,
-    `${c.os_dois} os dois`,
+    `Vieram ${c.vieram}`,
+    `conduzir ${c.conduzir}`,
+    `ser conduzido ${c.ser_conduzido}`,
+    `os dois ${c.os_dois}`,
   ].join(" · ");
 }
 

@@ -363,7 +363,7 @@ export async function alterarDias(
         ) {
           return {
             ok: false,
-            erros: { dias: "Os dias são os mesmos de agora." },
+            erros: { dias: "Esses já são os dias combinados nessa data." },
           };
         }
         await tx.insert(acordosBolsista).values({
