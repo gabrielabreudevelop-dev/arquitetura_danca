@@ -276,7 +276,7 @@ describe("obterFichaBolsista", () => {
     expect(recentes).toEqual([
       {
         em: new Date("2026-11-20T12:00:00Z"),
-        texto: "Inativado",
+        texto: "Inativado desde 20/11",
         por: adm.nome,
       },
       {
@@ -284,18 +284,70 @@ describe("obterFichaBolsista", () => {
         texto: "Dias: seg (desde 16/11)",
         por: outro.nome,
       },
-      { em: new Date("2026-11-15T12:00:00Z"), texto: "Ativado", por: adm.nome },
+      {
+        em: new Date("2026-11-15T12:00:00Z"),
+        texto: "Ativado desde 15/11",
+        por: adm.nome,
+      },
       {
         em: new Date("2026-11-10T12:00:00Z"),
-        texto: "Inativado · viagem",
+        texto: "Inativado desde 10/11 · viagem",
         por: outro.nome,
       },
     ]);
     expect(ficha?.historico).toHaveLength(6);
     expect(ficha?.historico.slice(4).map((h) => h.texto)).toEqual([
       "Dias: ter · qui (desde 01/11)",
-      "Ativado",
+      "Ativado desde 01/11",
     ]);
+  });
+
+  it("histórico: no mesmo instante, acordo antes de situação e depois pelo id", async () => {
+    const b = await criarBolsista(banco.db, {
+      criadoPor: adm.id,
+      dias: [2],
+      desde: "2026-11-01",
+    });
+    const mesmo = new Date("2026-11-05T12:00:00Z");
+    // Fábrica: ativação e acordo no mesmo instante.
+    await banco.db
+      .update(situacoesBolsista)
+      .set({ criadoEm: mesmo })
+      .where(eq(situacoesBolsista.pessoaId, b.id));
+    await banco.db
+      .update(acordosBolsista)
+      .set({ criadoEm: mesmo })
+      .where(eq(acordosBolsista.pessoaId, b.id));
+    // Duas situações no mesmo instante (mais recente que o cadastro).
+    const depois = new Date("2026-11-08T12:00:00Z");
+    const ids = [randomUUID(), randomUUID()].sort();
+    await banco.db.insert(situacoesBolsista).values([
+      {
+        id: ids[0],
+        pessoaId: b.id,
+        tipo: "inativacao",
+        data: "2026-11-08",
+        criadoPor: adm.id,
+        criadoEm: depois,
+      },
+      {
+        id: ids[1],
+        pessoaId: b.id,
+        tipo: "ativacao",
+        data: "2026-11-09",
+        criadoPor: adm.id,
+        criadoEm: depois,
+      },
+    ]);
+    for (let i = 0; i < 3; i++) {
+      const ficha = await obterFichaBolsista(banco.db, b.id, HOJE);
+      expect(ficha?.historico.map((h) => h.texto)).toEqual([
+        "Ativado desde 09/11",
+        "Inativado desde 08/11",
+        "Dias: ter (desde 01/11)",
+        "Ativado desde 01/11",
+      ]);
+    }
   });
 
   it("contatos: só listas de bolsista, e o bloqueio de contato", async () => {

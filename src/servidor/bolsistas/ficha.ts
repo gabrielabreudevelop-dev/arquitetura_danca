@@ -194,15 +194,19 @@ export async function obterFichaBolsista(
   // Histórico bruto, com quem fez (nada se apaga: inclui acordos substituídos).
   const situacoes = await db
     .select({
+      id: situacoesBolsista.id,
       tipo: situacoesBolsista.tipo,
+      data: situacoesBolsista.data,
       motivo: situacoesBolsista.motivo,
       em: situacoesBolsista.criadoEm,
       criadoPor: situacoesBolsista.criadoPor,
     })
     .from(situacoesBolsista)
-    .where(eq(situacoesBolsista.pessoaId, bolsista.id));
+    .where(eq(situacoesBolsista.pessoaId, bolsista.id))
+    .orderBy(asc(situacoesBolsista.criadoEm), asc(situacoesBolsista.id));
   const acordos = await db
     .select({
+      id: acordosBolsista.id,
       dias: acordosBolsista.dias,
       desde: acordosBolsista.vigenteDesde,
       em: acordosBolsista.criadoEm,
@@ -210,7 +214,7 @@ export async function obterFichaBolsista(
     })
     .from(acordosBolsista)
     .where(eq(acordosBolsista.pessoaId, bolsista.id))
-    .orderBy(asc(acordosBolsista.criadoEm));
+    .orderBy(asc(acordosBolsista.criadoEm), asc(acordosBolsista.id));
 
   const mensagem = alias(mensagensProntas, "mensagem");
   const contatosDaPessoa = await db
@@ -259,23 +263,40 @@ export async function obterFichaBolsista(
   }
   const nomeDe = (id: string) => nomes.get(id) ?? SEM_AUTOR;
 
+  // Mais recente primeiro; no mesmo instante, acordo antes de situação e
+  // depois o id (decrescente), para a ordem não variar entre carregamentos.
   const historico = [
-    ...situacoes.map((s) => ({
-      em: s.em,
-      texto:
-        s.tipo === "ativacao"
-          ? "Ativado"
-          : s.motivo?.trim()
-            ? `Inativado · ${s.motivo.trim()}`
-            : "Inativado",
-      por: nomeDe(s.criadoPor),
-    })),
+    ...situacoes.map((s) => {
+      const desde = `desde ${formatarDia(s.data)}`;
+      const motivo = s.motivo?.trim();
+      return {
+        id: s.id,
+        ordem: 0,
+        em: s.em,
+        texto:
+          s.tipo === "ativacao"
+            ? `Ativado ${desde}`
+            : motivo
+              ? `Inativado ${desde} · ${motivo}`
+              : `Inativado ${desde}`,
+        por: nomeDe(s.criadoPor),
+      };
+    }),
     ...acordos.map((a) => ({
+      id: a.id,
+      ordem: 1,
       em: a.em,
       texto: `Dias: ${diasCurtos(a.dias)} (desde ${formatarDia(a.desde)})`,
       por: nomeDe(a.criadoPor),
     })),
-  ].sort((a, b) => b.em.getTime() - a.em.getTime());
+  ]
+    .sort(
+      (a, b) =>
+        b.em.getTime() - a.em.getTime() ||
+        b.ordem - a.ordem ||
+        (a.id < b.id ? 1 : a.id > b.id ? -1 : 0),
+    )
+    .map(({ em, texto, por }) => ({ em, texto, por }));
 
   return {
     bolsista,
