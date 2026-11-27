@@ -70,6 +70,11 @@ export function filtrarBolsistas(
     .sort((a, b) => comparaNome(a.nome, b.nome));
 }
 
+/** Ativo, sem vir na janela e sem bloqueio de contato. */
+function entraNaListaSemVir(b: BolsistaCarregado, janela: Janela): boolean {
+  return b.ativo && b.semVir[janela].semVir && !b.contato.naoQuerContato;
+}
+
 export type LinhaBolsista = {
   pessoa: PessoaDeContato;
   bolsistas: BolsistaCarregado[];
@@ -88,14 +93,11 @@ export type LinhaBolsista = {
 export function linhasBolsistasSemVir(
   bolsistas: BolsistaCarregado[],
   janela: Janela,
-  _hoje: DataIso,
   agora: Date,
 ): LinhaBolsista[] {
   const ultima = (b: BolsistaCarregado) => b.semVir[janela].ultimaPresenca;
   const escolhidos = bolsistas
-    .filter(
-      (b) => b.ativo && b.semVir[janela].semVir && !b.contato.naoQuerContato,
-    )
+    .filter((b) => entraNaListaSemVir(b, janela))
     .sort((a, b) => {
       const ua = ultima(a);
       const ub = ultima(b);
@@ -151,12 +153,7 @@ export function contarBolsistas(
     dia,
     quantidade: ativos.filter((b) => b.diasHoje?.includes(dia)).length,
   })).filter((d) => d.quantidade > 0);
-  // O agora não muda quem entra nas linhas, só a ordem delas.
-  const semVir = linhasBolsistasSemVir(
-    bolsistas,
-    janela,
-    "",
-    new Date(0),
-  ).reduce((soma, l) => soma + l.bolsistas.length, 0);
+  // Cada bolsista entra em exatamente uma linha, então a contagem não depende da ordem.
+  const semVir = bolsistas.filter((b) => entraNaListaSemVir(b, janela)).length;
   return { ativos: ativos.length, porDia, semVir };
 }

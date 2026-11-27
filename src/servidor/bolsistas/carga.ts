@@ -4,7 +4,7 @@
  * situação, frequência, sem vir) vêm de `regras.ts`; filtros e contagens
  * ficam em `listas.ts`.
  */
-import { and, asc, eq, gte, inArray, isNull, lte } from "drizzle-orm";
+import { and, asc, eq, gte, inArray, isNull, lte, max } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import type { Executor } from "../alunos/cadastro";
 import type { AlunoCarregado } from "../alunos/carga";
@@ -170,6 +170,24 @@ export async function carregarBolsistas(
       ),
     );
 
+  // Última presença viva em toda a história (a janela carregada não alcança).
+  const linhasUltimas = await db
+    .select({ pessoaId: presencasAula.pessoaId, data: max(aulas.data) })
+    .from(presencasAula)
+    .innerJoin(aulas, eq(aulas.id, presencasAula.aulaId))
+    .where(
+      and(
+        isNull(presencasAula.desmarcadaEm),
+        eq(aulas.situacao, "realizada"),
+        lte(aulas.data, hoje),
+        doBolsista(presencasAula.pessoaId),
+      ),
+    )
+    .groupBy(presencasAula.pessoaId);
+  const ultimaPorPessoa = new Map(
+    linhasUltimas.map((u) => [u.pessoaId, u.data]),
+  );
+
   const responsaveisPorAluno = agrupar(linhasResponsaveis, (r) => r.alunoId);
   const base = linhasBolsistas.map((p) => {
     const nascimento = p.nascimento ?? "";
@@ -233,8 +251,16 @@ export async function carregarBolsistas(
       }
       const entrada = { acordos, historico, dias };
       const semVirPorJanela = {} as BolsistaCarregado["semVir"];
-      for (const j of JANELAS_CARGA)
-        semVirPorJanela[j] = semVir(entrada, hoje, j);
+      const historica = ultimaPorPessoa.get(p.id) ?? null;
+      for (const j of JANELAS_CARGA) {
+        const r = semVir(entrada, hoje, j);
+        const ultimaPresenca =
+          historica !== null &&
+          (r.ultimaPresenca === null || historica > r.ultimaPresenca)
+            ? historica
+            : r.ultimaPresenca;
+        semVirPorJanela[j] = { semVir: r.semVir, ultimaPresenca };
+      }
       return {
         id: p.id,
         nome: p.nome,

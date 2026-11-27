@@ -178,7 +178,7 @@ describe("contarBolsistas", () => {
       bolsista("Inativo", { ativo: false }),
     ];
     const c = contarBolsistas(todos, 15);
-    const linhas = linhasBolsistasSemVir(todos, 15, HOJE, AGORA);
+    const linhas = linhasBolsistasSemVir(todos, 15, AGORA);
     expect(c.ativos).toBe(
       filtrarBolsistas(todos, { situacao: "ativos", janela: 15 }).length,
     );
@@ -196,7 +196,6 @@ describe("linhasBolsistasSemVir", () => {
         bolsista("Alice", { contato: resp, sv: { 7: true } }),
       ],
       7,
-      HOJE,
       AGORA,
     );
     expect(linhas).toHaveLength(1);
@@ -211,7 +210,6 @@ describe("linhasBolsistasSemVir", () => {
         bolsista("Nunca", { sv: { 7: true }, ultima: null }),
       ],
       7,
-      HOJE,
       AGORA,
     );
     expect(linhas.map((l) => l.bolsistas[0].nome)).toEqual([
@@ -237,7 +235,6 @@ describe("linhasBolsistasSemVir", () => {
         }),
       ],
       7,
-      HOJE,
       AGORA,
     );
     expect(linhas.map((l) => l.bolsistas[0].nome)).toEqual(["B", "C", "A"]);
@@ -250,7 +247,6 @@ describe("linhasBolsistasSemVir", () => {
     const [linha] = linhasBolsistasSemVir(
       [bolsista("A", { sv: { 7: true }, ultimoContatoGeral: aluno })],
       7,
-      HOJE,
       AGORA,
     );
     expect(linha.recente).toEqual(aluno);
@@ -268,7 +264,6 @@ describe("linhasBolsistasSemVir", () => {
         bolsista("Em dia", { sv: { 15: true } }),
       ],
       7,
-      HOJE,
       AGORA,
     );
     expect(linhas).toEqual([]);

@@ -170,6 +170,35 @@ describe("carregarBolsistas", () => {
     expect(c.semVir[30].ultimaPresenca).toBe("2026-10-01");
   });
 
+  it("ultimaPresenca vem de toda a história, mesmo fora da janela carregada", async () => {
+    const turma = await criarTurma(banco.db, { dias: [2] });
+    const b = await criarBolsista(banco.db, {
+      criadoPor: adm.id,
+      desde: "2026-01-01",
+    });
+    const aula = await criarAula(banco.db, {
+      turmaId: turma.id,
+      data: "2026-08-28",
+      criadoPor: adm.id,
+    });
+    await marcarPresenca(banco.db, {
+      aulaId: aula.id,
+      pessoaId: b.id,
+      por: adm.id,
+    });
+    const nunca = await criarBolsista(banco.db, { criadoPor: adm.id });
+    const r = await carregarBolsistas(banco.db, HOJE, {
+      ids: [b.id, nunca.id],
+    });
+    const c = r.find((x) => x.id === b.id);
+    expect(c?.semVir[15].ultimaPresenca).toBe("2026-08-28");
+    expect(c?.semVir[30].ultimaPresenca).toBe("2026-08-28");
+    expect(c?.dias.has("2026-08-28")).toBe(false);
+    expect(
+      r.find((x) => x.id === nunca.id)?.semVir[15].ultimaPresenca,
+    ).toBeNull();
+  });
+
   it("pessoa aluno + bolsista aparece nas duas cargas com a mesma pessoa de contato", async () => {
     const b = await criarBolsista(banco.db, { criadoPor: adm.id });
     const [comoBolsista] = await carregarBolsistas(banco.db, HOJE, {
