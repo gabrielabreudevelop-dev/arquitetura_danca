@@ -33,6 +33,7 @@ import {
   turmas,
 } from "../banco/esquema";
 import { ehUuid } from "../cadastros/comum";
+import { LISTAS_BOLSISTA } from "../contatos/valores";
 import { type BolsistaCarregado, carregarBolsistas } from "./carga";
 import { type Dia, frequencia } from "./regras";
 import { diasCurtos } from "./textos";
@@ -224,7 +225,7 @@ export async function obterFichaBolsista(
     .where(
       and(
         eq(contatos.alunoId, bolsista.id),
-        inArray(contatos.lista, ["bolsista_ausente", "ficha_bolsista"]),
+        inArray(contatos.lista, [...LISTAS_BOLSISTA]),
       ),
     )
     .orderBy(desc(contatos.criadoEm), desc(contatos.id));

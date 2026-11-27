@@ -22,6 +22,7 @@ import {
   registrarContato,
   ultimosGruposDosAlunos,
 } from "@/servidor/contatos/contatos";
+import { LISTAS_ALUNO } from "@/servidor/contatos/valores";
 import { criarBancoDeTeste } from "../apoio/banco";
 import {
   criarAdministracao,
@@ -665,10 +666,14 @@ describe("registrarContato e resultado", () => {
       ),
     ).grupoId;
 
-    const ultimos = await ultimosGruposDosAlunos(banco.db, [
-      { alunoId: bruno, pessoaId: carlaId },
-      { alunoId: lia, pessoaId: carlaId },
-    ]);
+    const ultimos = await ultimosGruposDosAlunos(
+      banco.db,
+      [
+        { alunoId: bruno, pessoaId: carlaId },
+        { alunoId: lia, pessoaId: carlaId },
+      ],
+      LISTAS_ALUNO,
+    );
     expect(ultimos.get(bruno)).toBe(soBruno);
     expect(ultimos.get(lia)).toBe(juntos);
 
@@ -775,7 +780,9 @@ describe("registrarContato e resultado", () => {
       `update responsabilidades set responsavel_id = '${mariaId}' where aluno_id = '${ana}'`,
     );
     const linhaDaMaria = [{ alunoId: ana, pessoaId: mariaId }];
-    expect((await ultimosGruposDosAlunos(banco.db, linhaDaMaria)).size).toBe(0);
+    expect(
+      (await ultimosGruposDosAlunos(banco.db, linhaDaMaria, LISTAS_ALUNO)).size,
+    ).toBe(0);
     const daMaria = ok(
       await registrarContato(
         banco.db,
@@ -784,7 +791,9 @@ describe("registrarContato e resultado", () => {
       ),
     ).grupoId;
     expect(
-      (await ultimosGruposDosAlunos(banco.db, linhaDaMaria)).get(ana),
+      (await ultimosGruposDosAlunos(banco.db, linhaDaMaria, LISTAS_ALUNO)).get(
+        ana,
+      ),
     ).toBe(daMaria);
 
     // Lista adulterada (grupo de outra pessoa): recusada, nada muda.

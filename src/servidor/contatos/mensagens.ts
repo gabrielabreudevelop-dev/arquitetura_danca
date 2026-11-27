@@ -32,7 +32,7 @@ export const EXEMPLO_MENSAGEM: Record<CampoMensagem, string> = {
   dias: "terças e quintas",
 };
 
-/** "{nome}", "{nome} e {dias}", "{nome}, {aluno} ou {fim}". */
+/** "{nome}", "{nome} ou {dias}", "{nome}, {aluno} ou {fim}". */
 function listarCampos(campos: readonly string[]): string {
   const chaves = campos.map((c) => `{${c}}`);
   if (chaves.length <= 1) return chaves[0] ?? "";

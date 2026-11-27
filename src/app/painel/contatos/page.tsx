@@ -18,6 +18,7 @@ import {
 } from "@/servidor/contatos/contatos";
 import { primeiroNome } from "@/servidor/contatos/mensagens";
 import { mensagemDoErro } from "@/servidor/contatos/pedido-abrir";
+import { LISTAS_ALUNO } from "@/servidor/contatos/valores";
 import { textoDoEstado } from "../alunos/textos";
 import { BotaoWhatsapp, FormularioResultado } from "./formularios";
 import { textoDoUltimoContato, textoSemMensagem, textoVazio } from "./textos";
@@ -262,6 +263,7 @@ export default async function Contatos({
     linhas.flatMap((l) =>
       l.alunos.map((a) => ({ alunoId: a.id, pessoaId: l.pessoa.pessoaId })),
     ),
+    LISTAS_ALUNO,
   );
   const gruposDa = (l: LinhaContato): string[] => [
     ...new Set(

@@ -349,6 +349,8 @@ async function temBloqueioAberto(
 export async function ultimosGruposDosAlunos(
   db: Executor,
   alunos: { alunoId: string; pessoaId: string }[],
+  /** Listas do tipo da tela (`LISTAS_ALUNO` ou `LISTAS_BOLSISTA`): o outro tipo não conta. */
+  listas: readonly ListaContato[],
 ): Promise<Map<string, string>> {
   const pessoaDe = new Map(
     alunos
@@ -363,7 +365,12 @@ export async function ultimosGruposDosAlunos(
       grupoId: contatos.grupoId,
     })
     .from(contatos)
-    .where(inArray(contatos.alunoId, [...pessoaDe.keys()]))
+    .where(
+      and(
+        inArray(contatos.alunoId, [...pessoaDe.keys()]),
+        inArray(contatos.lista, [...listas]),
+      ),
+    )
     .orderBy(
       asc(contatos.alunoId),
       asc(contatos.pessoaContatoId),

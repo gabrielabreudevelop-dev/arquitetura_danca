@@ -1,13 +1,16 @@
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { hojeEmSaoPaulo } from "@/servidor/alunos/datas";
+import { obterFicha } from "@/servidor/alunos/ficha";
 import { contatos, pessoas, situacoesBolsista } from "@/servidor/banco/esquema";
 import { salvarMensagem } from "@/servidor/configuracoes/mensagens-prontas";
 import {
   marcarResultado,
   prepararContato,
   registrarContato,
+  ultimosGruposDosAlunos,
 } from "@/servidor/contatos/contatos";
+import { LISTAS_ALUNO, LISTAS_BOLSISTA } from "@/servidor/contatos/valores";
 import { criarBancoDeTeste } from "../apoio/banco";
 import {
   criarAdministracao,
@@ -434,5 +437,54 @@ describe("mensagem por finalidade", () => {
         ativa: false,
       }),
     );
+  });
+});
+
+describe("grupos e histórico separados por tipo de lista", () => {
+  async function alunoEBolsista() {
+    const b = await bolsista("Pessoa Dupla");
+    const grupoAluno = crypto.randomUUID();
+    const grupoBolsista = crypto.randomUUID();
+    const base = {
+      alunoId: b.id,
+      pessoaContatoId: b.id,
+      whatsapp: b.whatsapp ?? "",
+      texto: "Oi",
+      criadoPor: adm.id,
+    };
+    await banco.db.insert(contatos).values([
+      {
+        ...base,
+        grupoId: grupoAluno,
+        lista: "vencido",
+        criadoEm: new Date("2026-11-20T12:00:00Z"),
+      },
+      {
+        ...base,
+        grupoId: grupoBolsista,
+        lista: "bolsista_ausente",
+        criadoEm: new Date("2026-11-25T12:00:00Z"),
+      },
+    ]);
+    return { b, grupoAluno, grupoBolsista };
+  }
+
+  it("ultimosGruposDosAlunos considera só as listas do tipo pedido", async () => {
+    const { b, grupoAluno, grupoBolsista } = await alunoEBolsista();
+    const linha = [{ alunoId: b.id, pessoaId: b.id }];
+    expect(
+      (await ultimosGruposDosAlunos(banco.db, linha, LISTAS_ALUNO)).get(b.id),
+    ).toBe(grupoAluno);
+    expect(
+      (await ultimosGruposDosAlunos(banco.db, linha, LISTAS_BOLSISTA)).get(
+        b.id,
+      ),
+    ).toBe(grupoBolsista);
+  });
+
+  it("a ficha do aluno não mostra o contato de bolsista da mesma pessoa", async () => {
+    const { b, grupoAluno } = await alunoEBolsista();
+    const ficha = await obterFicha(banco.db, b.id, HOJE);
+    expect(ficha?.contatos.map((c) => c.grupoId)).toEqual([grupoAluno]);
   });
 });

@@ -25,6 +25,7 @@ import {
   turmas,
 } from "../banco/esquema";
 import { ehUuid } from "../cadastros/comum";
+import { LISTAS_ALUNO } from "../contatos/valores";
 import { type Executor, podeExcluirAluno } from "./cadastro";
 import { type AlunoCarregado, carregarAlunos, rotuloDaTurma } from "./carga";
 import { type DataIso, diasEntre, formatarDia } from "./datas";
@@ -295,7 +296,12 @@ export async function obterFicha(
     })
     .from(contatos)
     .leftJoin(mensagem, eq(mensagem.id, contatos.mensagemId))
-    .where(eq(contatos.alunoId, aluno.id))
+    .where(
+      and(
+        eq(contatos.alunoId, aluno.id),
+        inArray(contatos.lista, [...LISTAS_ALUNO]),
+      ),
+    )
     .orderBy(desc(contatos.criadoEm), desc(contatos.id));
 
   const [bloqueio] = await db

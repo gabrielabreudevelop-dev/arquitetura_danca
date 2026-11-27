@@ -225,6 +225,8 @@ export async function responderAbrir(
     return { status: 303, location: resultado.valor.url };
   } catch {
     console.error("Falha ao registrar um contato.");
-    return voltarComErro("erro");
+    return ehListaDeBolsista(pedido.lista)
+      ? voltarDeBolsista(pedido, form, "erro")
+      : voltarComErro("erro");
   }
 }
