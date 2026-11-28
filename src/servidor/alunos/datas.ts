@@ -47,6 +47,12 @@ export function diasEntre(de: DataIso, ate: DataIso): number {
   );
 }
 
+/** Dia da semana de uma data "AAAA-MM-DD": 0 = domingo … 6 = sábado (independe do fuso). */
+export function diaDaSemana(data: DataIso): number {
+  const [ano, mes, dia] = partes(data);
+  return new Date(Date.UTC(ano, mes - 1, dia)).getUTCDay();
+}
+
 /** Dia que não existe no mês de destino vira o dia 1 do mês seguinte. */
 export function somarMeses(data: DataIso, meses: number): DataIso {
   const [ano, mes, dia] = partes(data);

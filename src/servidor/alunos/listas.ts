@@ -240,8 +240,11 @@ export function contarDash(
   };
 }
 
+/** Janela padrão da aba "Bolsistas sem vir" (as de aluno usam 7). */
+export const JANELA_PADRAO_BOLSISTAS: Janela = 15;
+
 export type FiltrosContatos = {
-  lista: "vence_em_breve" | "vencido";
+  lista: "vence_em_breve" | "vencido" | "bolsista_ausente";
   janela: Janela;
   /** Vencidos de qualquer data, não só dos últimos 90 dias. */
   todos: boolean;
@@ -250,9 +253,16 @@ export type FiltrosContatos = {
 };
 
 export function lerFiltrosContatos(params: Parametros): FiltrosContatos {
+  const pedida = primeiro(params.lista);
+  const lista =
+    pedida === "vencido" || pedida === "bolsista_ausente"
+      ? pedida
+      : "vence_em_breve";
+  const padrao = lista === "bolsista_ausente" ? JANELA_PADRAO_BOLSISTAS : 7;
   return {
-    lista: primeiro(params.lista) === "vencido" ? "vencido" : "vence_em_breve",
-    janela: lerJanela(primeiro(params.janela)),
+    lista,
+    janela:
+      JANELAS.find((j) => String(j) === primeiro(params.janela)) ?? padrao,
     todos: primeiro(params.todos) === "1",
     semContato: primeiro(params.sem_contato) === "1",
   };
@@ -261,8 +271,11 @@ export function lerFiltrosContatos(params: Parametros): FiltrosContatos {
 /** Endereço das listas de contato; ordem fixa, sem os valores padrão. */
 export function urlContatos(f: Partial<FiltrosContatos>): string {
   const busca = new URLSearchParams();
-  if (f.lista === "vencido") busca.set("lista", "vencido");
-  if (f.janela && f.janela !== 7) busca.set("janela", String(f.janela));
+  if (f.lista === "vencido" || f.lista === "bolsista_ausente") {
+    busca.set("lista", f.lista);
+  }
+  const padrao = f.lista === "bolsista_ausente" ? JANELA_PADRAO_BOLSISTAS : 7;
+  if (f.janela && f.janela !== padrao) busca.set("janela", String(f.janela));
   if (f.todos) busca.set("todos", "1");
   if (f.semContato) busca.set("sem_contato", "1");
   const consulta = busca.toString();
@@ -321,10 +334,11 @@ export function linhasDeContato(
       continue;
     }
     const ultimo = a.ultimoContato;
+    const geral = a.ultimoContatoGeral;
     const recente =
-      ultimo &&
-      agora.getTime() - ultimo.em.getTime() < DIAS_CONTATO_RECENTE * MS_POR_DIA
-        ? ultimo
+      geral &&
+      agora.getTime() - geral.em.getTime() < DIAS_CONTATO_RECENTE * MS_POR_DIA
+        ? geral
         : null;
     linhas.set(a.contato.pessoaId, {
       pessoa: a.contato,

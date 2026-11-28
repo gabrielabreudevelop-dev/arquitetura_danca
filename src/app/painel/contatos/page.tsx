@@ -1,9 +1,11 @@
 import Link from "next/link";
+import type { PessoaDeContato, UltimoContato } from "@/servidor/alunos/carga";
 import { type AlunoCarregado, carregarAlunos } from "@/servidor/alunos/carga";
 import { hojeEmSaoPaulo } from "@/servidor/alunos/datas";
 import {
   type FiltrosContatos,
   JANELAS,
+  type Janela,
   type LinhaContato,
   lerFiltrosContatos,
   linhasDeContato,
@@ -11,6 +13,16 @@ import {
 } from "@/servidor/alunos/listas";
 import { exigirAdministracao } from "@/servidor/auth/acesso";
 import { obterBanco } from "@/servidor/banco/cliente";
+import {
+  type BolsistaCarregado,
+  carregarBolsistas,
+} from "@/servidor/bolsistas/carga";
+import {
+  contarBolsistas,
+  type LinhaBolsista,
+  linhasBolsistasSemVir,
+} from "@/servidor/bolsistas/listas";
+import { diasCurtos } from "@/servidor/bolsistas/textos";
 import { mensagemAtiva } from "@/servidor/configuracoes/mensagens-prontas";
 import {
   MENSAGEM_RECENTE,
@@ -18,9 +30,25 @@ import {
 } from "@/servidor/contatos/contatos";
 import { primeiroNome } from "@/servidor/contatos/mensagens";
 import { mensagemDoErro } from "@/servidor/contatos/pedido-abrir";
+import {
+  LISTAS_ALUNO,
+  LISTAS_BOLSISTA,
+  type ListaContato,
+  RESULTADOS_ALUNO,
+  RESULTADOS_BOLSISTA,
+  type ResultadoContato,
+} from "@/servidor/contatos/valores";
 import { textoDoEstado } from "../alunos/textos";
+import { textoDaFrequencia } from "../bolsistas/textos";
+import { Opcoes } from "../opcoes";
 import { BotaoWhatsapp, FormularioResultado } from "./formularios";
-import { textoDoUltimoContato, textoSemMensagem, textoVazio } from "./textos";
+import {
+  textoDoUltimoContato,
+  textoSemMensagem,
+  textoTotalBolsistas,
+  textoUltimaPresenca,
+  textoVazio,
+} from "./textos";
 
 export const dynamic = "force-dynamic";
 
@@ -29,55 +57,6 @@ const LINK_TOQUE = `-mx-2 inline-flex min-h-12 items-center px-2 ${LINK}`;
 
 function alunosNasLinhas(linhas: LinhaContato[]): number {
   return linhas.reduce((soma, l) => soma + l.alunos.length, 0);
-}
-
-/** Opções de filtro como links: a escolhida fica marcada, sem ser link. */
-function Opcoes({
-  rotulo,
-  id,
-  opcoes,
-  empilhar = false,
-}: {
-  rotulo: string;
-  id: string;
-  opcoes: { rotulo: string; href: string; atual: boolean }[];
-  /** No celular, uma opção embaixo da outra (rótulos longos). */
-  empilhar?: boolean;
-}) {
-  return (
-    <div className="flex flex-col gap-2">
-      <span id={id} className="font-semibold">
-        {rotulo}
-      </span>
-      <ul
-        aria-labelledby={id}
-        className={`flex rounded-sm border border-borda ${empilhar ? "flex-col md:flex-row" : ""}`}
-      >
-        {opcoes.map((o) => (
-          <li
-            key={o.href}
-            className={`flex-1 border-borda ${empilhar ? "border-t first:border-t-0 md:border-t-0 md:border-l md:first:border-l-0" : "border-l first:border-l-0"}`}
-          >
-            {o.atual ? (
-              <span
-                aria-current="true"
-                className="flex min-h-12 items-center justify-center whitespace-nowrap bg-rosa-suave px-4 font-semibold"
-              >
-                {o.rotulo}
-              </span>
-            ) : (
-              <Link
-                href={o.href}
-                className="flex min-h-12 items-center justify-center whitespace-nowrap px-4 text-link hover:bg-fundo-suave"
-              >
-                {o.rotulo}
-              </Link>
-            )}
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
 }
 
 /** Turmas e período de um aluno: "Forró Iniciante · ter e qui 19h · venceu em 02/11". */
@@ -89,31 +68,119 @@ function detalheDoAluno(a: AlunoCarregado): string {
   return `${turmas} · ${textoDoEstado(a.resumo)}`;
 }
 
-function QuemRecebe({ linha }: { linha: LinhaContato }) {
-  const { pessoa, alunos } = linha;
-  const fichas = alunos.map((a, i) => (
-    <span key={a.id}>
+type Ficha = { id: string; nome: string; href: string };
+
+/** Quem recebe a mensagem: a pessoa e, se for responsável, os menores com link para a ficha. */
+function QuemRecebe({
+  pessoa,
+  fichas,
+}: {
+  pessoa: PessoaDeContato;
+  fichas: Ficha[];
+}) {
+  const links = fichas.map((f, i) => (
+    <span key={f.id}>
       {i > 0 && (
         <span className="font-normal">
-          {i === alunos.length - 1 ? " e " : ", "}
+          {i === fichas.length - 1 ? " e " : ", "}
         </span>
       )}
-      <Link href={`/painel/alunos/${a.id}`} className={LINK_TOQUE}>
-        {alunos.length > 1 || pessoa.ehResponsavel
-          ? primeiroNome(a.nome)
-          : a.nome}
+      <Link href={f.href} className={LINK_TOQUE}>
+        {fichas.length > 1 || pessoa.ehResponsavel
+          ? primeiroNome(f.nome)
+          : f.nome}
       </Link>
     </span>
   ));
   if (!pessoa.ehResponsavel) {
-    return <p className="font-semibold">{fichas}</p>;
+    return <p className="font-semibold">{links}</p>;
   }
   return (
     <p className="font-semibold">
       {pessoa.nome}
       <span className="font-normal text-texto-suave">, responsável por </span>
-      {fichas}
+      {links}
     </p>
+  );
+}
+
+/**
+ * Coluna de contato de uma linha (aluno ou bolsista): WhatsApp (com o aviso de
+ * contato recente), resultado do último contato e, em "não volta", os links
+ * de encerrar/inativar passados em `aoNaoVolta`.
+ */
+function CelulaContato({
+  pessoa,
+  ids,
+  lista,
+  filtros,
+  ultimoContato,
+  grupos,
+  confirmar,
+  resultados,
+  cadastrarHref,
+  aoNaoVolta,
+}: {
+  pessoa: PessoaDeContato;
+  ids: string[];
+  lista: ListaContato;
+  filtros: FiltrosContatos;
+  ultimoContato: UltimoContato | null;
+  grupos: string[];
+  confirmar: boolean;
+  resultados: readonly ResultadoContato[];
+  cadastrarHref: string;
+  aoNaoVolta: React.ReactNode;
+}) {
+  const botao = {
+    alunoIds: ids,
+    lista,
+    visto: ultimoContato?.grupoId ?? null,
+    filtros,
+  };
+  return (
+    <div className="flex flex-col gap-4">
+      {pessoa.whatsapp && confirmar ? (
+        <div className="flex flex-col gap-2">
+          <p role="alert" className="text-erro">
+            {MENSAGEM_RECENTE}
+          </p>
+          <BotaoWhatsapp
+            {...botao}
+            confirmar
+            depois={urlContatos(filtros)}
+            rotuloAcessivel={`Chamar ${pessoa.nome} mesmo assim`}
+          >
+            Chamar mesmo assim
+          </BotaoWhatsapp>
+        </div>
+      ) : pessoa.whatsapp ? (
+        <BotaoWhatsapp
+          {...botao}
+          rotuloAcessivel={`WhatsApp para ${pessoa.nome}`}
+        >
+          WhatsApp
+        </BotaoWhatsapp>
+      ) : (
+        <p>
+          Sem WhatsApp.{" "}
+          <Link href={cadastrarHref} className={LINK_TOQUE}>
+            Cadastrar número
+          </Link>
+        </p>
+      )}
+      {ultimoContato && grupos.length > 0 && (
+        <FormularioResultado
+          key={`${grupos.join()}-${ultimoContato.resultado}`}
+          pessoaId={pessoa.pessoaId}
+          grupoIds={grupos}
+          atual={ultimoContato.resultado}
+          nome={pessoa.nome}
+          resultados={resultados}
+        />
+      )}
+      {ultimoContato?.resultado === "nao_volta" && aoNaoVolta}
+    </div>
   );
 }
 
@@ -134,17 +201,17 @@ function Linha({
 }) {
   const { pessoa, alunos, ultimoContato } = linha;
   const varios = alunos.length > 1;
-  const lista = filtros.lista;
-  const botao = {
-    alunoIds: alunos.map((a) => a.id),
-    lista,
-    visto: ultimoContato?.grupoId ?? null,
-    filtros,
-  };
   return (
     <tr className="flex flex-col gap-4 border-linha border-b py-6 first:border-t md:table-row md:first:border-t-0">
       <td className="flex flex-col gap-1 md:table-cell md:py-6 md:pr-6 md:align-top">
-        <QuemRecebe linha={linha} />
+        <QuemRecebe
+          pessoa={pessoa}
+          fichas={alunos.map((a) => ({
+            id: a.id,
+            nome: a.nome,
+            href: `/painel/alunos/${a.id}`,
+          }))}
+        />
         <ul className="flex flex-col gap-1 text-texto-suave">
           {alunos.map((a) => (
             <li key={a.id}>
@@ -163,59 +230,110 @@ function Linha({
         </p>
       </td>
       <td className="flex flex-col gap-4 md:table-cell md:w-80 md:py-6 md:align-top">
-        <div className="flex flex-col gap-4">
-          {pessoa.whatsapp && confirmar ? (
-            <div className="flex flex-col gap-2">
-              <p role="alert" className="text-erro">
-                {MENSAGEM_RECENTE}
-              </p>
-              <BotaoWhatsapp
-                {...botao}
-                confirmar
-                depois={urlContatos(filtros)}
-                rotuloAcessivel={`Chamar ${pessoa.nome} mesmo assim`}
-              >
-                Chamar mesmo assim
-              </BotaoWhatsapp>
-            </div>
-          ) : pessoa.whatsapp ? (
-            <BotaoWhatsapp
-              {...botao}
-              rotuloAcessivel={`WhatsApp para ${pessoa.nome}`}
+        <CelulaContato
+          pessoa={pessoa}
+          ids={alunos.map((a) => a.id)}
+          lista={filtros.lista}
+          filtros={filtros}
+          ultimoContato={ultimoContato}
+          grupos={grupos}
+          confirmar={confirmar}
+          resultados={RESULTADOS_ALUNO}
+          cadastrarHref={`/painel/alunos/${alunos[0].id}/editar`}
+          aoNaoVolta={alunos.map((a) => (
+            <Link
+              key={a.id}
+              href={`/painel/alunos/${a.id}/encerrar`}
+              className={`${LINK_TOQUE} self-start`}
             >
-              WhatsApp
-            </BotaoWhatsapp>
-          ) : (
-            <p>
-              Sem WhatsApp.{" "}
-              <Link
-                href={`/painel/alunos/${alunos[0].id}/editar`}
-                className={LINK_TOQUE}
-              >
-                Cadastrar número
-              </Link>
-            </p>
-          )}
-          {ultimoContato && grupos.length > 0 && (
-            <FormularioResultado
-              key={`${grupos.join()}-${ultimoContato.resultado}`}
-              pessoaId={pessoa.pessoaId}
-              grupoIds={grupos}
-              atual={ultimoContato.resultado}
-              nome={pessoa.nome}
-            />
-          )}
-          {ultimoContato?.resultado === "nao_volta" &&
-            alunos.map((a) => (
-              <Link
-                key={a.id}
-                href={`/painel/alunos/${a.id}/encerrar`}
-                className={`${LINK_TOQUE} self-start`}
-              >
-                {varios ? `Encerrar ${primeiroNome(a.nome)}` : "Encerrar aluno"}
-              </Link>
-            ))}
-        </div>
+              {varios ? `Encerrar ${primeiroNome(a.nome)}` : "Encerrar aluno"}
+            </Link>
+          ))}
+        />
+      </td>
+    </tr>
+  );
+}
+
+/** Dias, última presença e frequência do mês de um bolsista da linha. */
+function detalheDoBolsista(
+  b: BolsistaCarregado,
+  hoje: string,
+  janela: Janela,
+): string {
+  const dias = b.diasHoje ? diasCurtos(b.diasHoje) : "sem dias combinados";
+  return `${dias} · ${textoUltimaPresenca(b.semVir[janela].ultimaPresenca, hoje)}`;
+}
+
+function LinhaDeBolsista({
+  linha,
+  filtros,
+  hoje,
+  grupos,
+  confirmar,
+}: {
+  linha: LinhaBolsista;
+  filtros: FiltrosContatos;
+  hoje: string;
+  grupos: string[];
+  confirmar: boolean;
+}) {
+  const { pessoa, bolsistas, ultimoContato } = linha;
+  const varios = bolsistas.length > 1;
+  return (
+    <tr className="flex flex-col gap-4 border-linha border-b py-6 first:border-t md:table-row md:first:border-t-0">
+      <td className="flex flex-col gap-1 md:table-cell md:py-6 md:pr-6 md:align-top">
+        <QuemRecebe
+          pessoa={pessoa}
+          fichas={bolsistas.map((b) => ({
+            id: b.id,
+            nome: b.nome,
+            href: `/painel/bolsistas/${b.id}`,
+          }))}
+        />
+        <ul className="flex flex-col gap-1 text-texto-suave">
+          {bolsistas.map((b) => (
+            <li key={b.id} className="flex flex-col">
+              <span>
+                {varios && `${primeiroNome(b.nome)}: `}
+                {detalheDoBolsista(b, hoje, filtros.janela)}
+              </span>
+              <span>Neste mês: {textoDaFrequencia(b.mes)}</span>
+              {b.contato.usandoNumeroDoResponsavel && (
+                <span>
+                  {`sem WhatsApp próprio — usando o de ${primeiroNome(pessoa.nome)} (responsável)`}
+                </span>
+              )}
+            </li>
+          ))}
+        </ul>
+        <p className="text-pequeno text-texto-suave">
+          {textoDoUltimoContato(linha, hoje)}
+        </p>
+      </td>
+      <td className="flex flex-col gap-4 md:table-cell md:w-80 md:py-6 md:align-top">
+        <CelulaContato
+          pessoa={pessoa}
+          ids={bolsistas.map((b) => b.id)}
+          lista="bolsista_ausente"
+          filtros={filtros}
+          ultimoContato={ultimoContato}
+          grupos={grupos}
+          confirmar={confirmar}
+          resultados={RESULTADOS_BOLSISTA}
+          cadastrarHref={`/painel/bolsistas/${bolsistas[0].id}/editar`}
+          aoNaoVolta={bolsistas.map((b) => (
+            <Link
+              key={b.id}
+              href={`/painel/bolsistas/${b.id}/situacao`}
+              className={`${LINK_TOQUE} self-start`}
+            >
+              {varios
+                ? `Inativar ${primeiroNome(b.nome)}`
+                : "Inativar bolsista"}
+            </Link>
+          ))}
+        />
       </td>
     </tr>
   );
@@ -237,18 +355,26 @@ export default async function Contatos({
   const hoje = hojeEmSaoPaulo();
   const agora = new Date();
   const db = obterBanco();
-  const [alunos, mensagem] = await Promise.all([
+  const ehBolsistas = filtros.lista === "bolsista_ausente";
+  const [alunos, bolsistas, mensagem] = await Promise.all([
     carregarAlunos(db, hoje),
+    carregarBolsistas(db, hoje),
     mensagemAtiva(
       db,
-      filtros.lista === "vence_em_breve" ? "renovacao" : "retorno",
+      ehBolsistas
+        ? "bolsista"
+        : filtros.lista === "vence_em_breve"
+          ? "renovacao"
+          : "retorno",
     ),
   ]);
 
-  const filtrosDe = (lista: FiltrosContatos["lista"]): FiltrosContatos => ({
-    ...filtros,
-    lista,
-  });
+  // Trocar de tipo de lista volta aos filtros padrão da aba de destino
+  // (as de aluno usam 7 dias; a de bolsistas, 15).
+  const filtrosDe = (lista: FiltrosContatos["lista"]): FiltrosContatos =>
+    (lista === "bolsista_ausente") === ehBolsistas
+      ? { ...filtros, lista }
+      : lerFiltrosContatos({ lista });
   const vencem = linhasDeContato(
     alunos,
     filtrosDe("vence_em_breve"),
@@ -256,28 +382,49 @@ export default async function Contatos({
     agora,
   );
   const vencidos = linhasDeContato(alunos, filtrosDe("vencido"), hoje, agora);
+  const filtrosBolsistas = filtrosDe("bolsista_ausente");
+  const semVir = linhasBolsistasSemVir(
+    bolsistas,
+    filtrosBolsistas.janela,
+    agora,
+  );
+  const totalSemVir = contarBolsistas(
+    bolsistas,
+    filtrosBolsistas.janela,
+  ).semVir;
   const linhas = filtros.lista === "vence_em_breve" ? vencem : vencidos;
+  const itensDasLinhas = ehBolsistas
+    ? semVir.flatMap((l) =>
+        l.bolsistas.map((b) => ({ id: b.id, pessoaId: l.pessoa.pessoaId })),
+      )
+    : linhas.flatMap((l) =>
+        l.alunos.map((a) => ({ id: a.id, pessoaId: l.pessoa.pessoaId })),
+      );
   const ultimosGrupos = await ultimosGruposDosAlunos(
     db,
-    linhas.flatMap((l) =>
-      l.alunos.map((a) => ({ alunoId: a.id, pessoaId: l.pessoa.pessoaId })),
-    ),
+    itensDasLinhas.map((i) => ({ alunoId: i.id, pessoaId: i.pessoaId })),
+    ehBolsistas ? LISTAS_BOLSISTA : LISTAS_ALUNO,
   );
-  const gruposDa = (l: LinhaContato): string[] => [
+  const gruposDe = (ids: string[]): string[] => [
     ...new Set(
-      l.alunos
-        .map((a) => ultimosGrupos.get(a.id))
+      ids
+        .map((id) => ultimosGrupos.get(id))
         .filter((g): g is string => g !== undefined),
     ),
   ];
 
-  // R17: o aviso de contato recente vai na linha do aluno marcado; se ela
-  // não estiver na lista, fica no topo, como os outros erros.
-  const linhaConfirmar =
-    codigoErro === "recente"
-      ? linhas.find((l) => l.alunos.some((a) => a.id === alunoMarcado))
-      : undefined;
-  const erroNoTopo = linhaConfirmar ? null : erro;
+  // R17: o aviso de contato recente vai na linha do aluno (ou bolsista)
+  // marcado; se ela não estiver na lista, fica no topo, como os outros erros.
+  const marcado = codigoErro === "recente" ? alunoMarcado : undefined;
+  const linhaConfirmar = marcado
+    ? linhas.find((l) => l.alunos.some((a) => a.id === marcado))
+    : undefined;
+  const linhaConfirmarBolsista = marcado
+    ? semVir.find((l) => l.bolsistas.some((b) => b.id === marcado))
+    : undefined;
+  const erroNoTopo = (ehBolsistas ? linhaConfirmarBolsista : linhaConfirmar)
+    ? null
+    : erro;
 
   const abas = [
     {
@@ -289,6 +436,11 @@ export default async function Contatos({
       lista: "vencido" as const,
       rotulo: "Vencidos",
       quantidade: alunosNasLinhas(vencidos),
+    },
+    {
+      lista: "bolsista_ausente" as const,
+      rotulo: "Bolsistas sem vir",
+      quantidade: totalSemVir,
     },
   ];
 
@@ -329,7 +481,17 @@ export default async function Contatos({
       </nav>
 
       <div className="flex flex-col gap-6 md:flex-row md:flex-wrap md:items-end">
-        {filtros.lista === "vence_em_breve" ? (
+        {ehBolsistas ? (
+          <Opcoes
+            id="filtro-janela-bolsistas"
+            rotulo="Sem vir há"
+            opcoes={JANELAS.map((j) => ({
+              rotulo: `${j} dias`,
+              href: urlContatos({ ...filtros, janela: j }),
+              atual: j === filtros.janela,
+            }))}
+          />
+        ) : filtros.lista === "vence_em_breve" ? (
           <Opcoes
             id="filtro-janela"
             rotulo="Vencem nos próximos"
@@ -387,21 +549,31 @@ export default async function Contatos({
         </p>
       )}
 
-      {linhas.length === 0 ? (
+      {ehBolsistas && semVir.length > 0 && (
+        <p className="font-semibold">
+          {textoTotalBolsistas(totalSemVir, filtros.janela)}
+        </p>
+      )}
+
+      {(ehBolsistas ? semVir.length : linhas.length) === 0 ? (
         <section className="flex max-w-prose flex-col gap-2 border-linha border-t pt-6">
           <h2 className="text-base">{textoVazio(filtros)}</h2>
           <p className="text-texto-suave">
-            {filtros.lista === "vence_em_breve"
-              ? "Quem estiver com o período perto do fim aparece aqui, do que vence primeiro ao último."
-              : "Quem tiver o período vencido aparece aqui, do que venceu mais recentemente ao mais antigo."}
+            {ehBolsistas
+              ? "Bolsistas ativos que não vieram na janela escolhida aparecem aqui, de quem está há mais tempo sem vir ao mais recente."
+              : filtros.lista === "vence_em_breve"
+                ? "Quem estiver com o período perto do fim aparece aqui, do que vence primeiro ao último."
+                : "Quem tiver o período vencido aparece aqui, do que venceu mais recentemente ao mais antigo."}
           </p>
         </section>
       ) : (
         <table className="block w-full md:table">
           <caption className="sr-only">
-            {filtros.lista === "vence_em_breve"
-              ? "Alunos que vencem em breve, por pessoa de contato"
-              : "Alunos vencidos, por pessoa de contato"}
+            {ehBolsistas
+              ? "Bolsistas sem vir, por pessoa de contato"
+              : filtros.lista === "vence_em_breve"
+                ? "Alunos que vencem em breve, por pessoa de contato"
+                : "Alunos vencidos, por pessoa de contato"}
           </caption>
           <thead className="hidden md:table-header-group">
             <tr className="border-linha border-b text-left">
@@ -414,16 +586,27 @@ export default async function Contatos({
             </tr>
           </thead>
           <tbody className="block md:table-row-group">
-            {linhas.map((l) => (
-              <Linha
-                key={l.pessoa.pessoaId}
-                linha={l}
-                filtros={filtros}
-                hoje={hoje}
-                grupos={gruposDa(l)}
-                confirmar={l === linhaConfirmar}
-              />
-            ))}
+            {ehBolsistas
+              ? semVir.map((l) => (
+                  <LinhaDeBolsista
+                    key={l.pessoa.pessoaId}
+                    linha={l}
+                    filtros={filtros}
+                    hoje={hoje}
+                    grupos={gruposDe(l.bolsistas.map((b) => b.id))}
+                    confirmar={l === linhaConfirmarBolsista}
+                  />
+                ))
+              : linhas.map((l) => (
+                  <Linha
+                    key={l.pessoa.pessoaId}
+                    linha={l}
+                    filtros={filtros}
+                    hoje={hoje}
+                    grupos={gruposDe(l.alunos.map((a) => a.id))}
+                    confirmar={l === linhaConfirmar}
+                  />
+                ))}
           </tbody>
         </table>
       )}

@@ -18,6 +18,7 @@ const LINHA =
 const FINALIDADES = {
   renovacao: "Renovação",
   retorno: "Convite para voltar",
+  bolsista: "Bolsista sem vir",
 };
 
 export default async function Configuracoes() {

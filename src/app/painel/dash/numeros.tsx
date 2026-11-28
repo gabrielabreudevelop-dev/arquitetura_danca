@@ -5,6 +5,7 @@ import {
   urlAlunos,
   urlContatos,
 } from "@/servidor/alunos/listas";
+import type { numerosDeBolsistas } from "./bolsistas";
 import {
   DIMENSOES_DO_DASH,
   type Por,
@@ -168,5 +169,32 @@ export function NumerosDoDash({
         )}
       </section>
     </>
+  );
+}
+
+/** Bolsistas: cada número abre a lista que o contou (ver `numerosDeBolsistas`). */
+export function NumerosDeBolsistas({
+  numeros,
+}: {
+  numeros: ReturnType<typeof numerosDeBolsistas>;
+}) {
+  return (
+    <section aria-labelledby="dash-bolsistas" className="flex flex-col gap-6">
+      <h2 id="dash-bolsistas" className="text-base">
+        Bolsistas
+      </h2>
+      <ul>
+        <Linha
+          rotulo="Bolsistas ativos"
+          numero={numeros.ativos.numero}
+          href={numeros.ativos.href}
+        />
+        <Linha
+          rotulo="Bolsistas sem vir há 15 dias"
+          numero={numeros.semVir.numero}
+          href={numeros.semVir.href}
+        />
+      </ul>
+    </section>
   );
 }

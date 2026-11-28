@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type { UltimoContato } from "@/servidor/alunos/carga";
-import { textoDoUltimoContato, textoSemMensagem, textoVazio } from "./textos";
+import {
+  textoDoUltimoContato,
+  textoSemMensagem,
+  textoTotalBolsistas,
+  textoUltimaPresenca,
+  textoVazio,
+} from "./textos";
 
 const HOJE = "2026-11-22";
 
@@ -101,5 +107,36 @@ describe("textos fixos", () => {
         semContato: true,
       }),
     ).toBe("Todos os vencidos já receberam contato.");
+  });
+});
+
+describe("textos da aba de bolsistas", () => {
+  it("aviso sem mensagem e lista vazia", () => {
+    expect(textoSemMensagem("bolsista_ausente")).toBe(
+      "Não há mensagem pronta de bolsista sem vir ativa. O WhatsApp vai abrir sem texto.",
+    );
+    expect(
+      textoVazio({
+        lista: "bolsista_ausente",
+        janela: 15,
+        todos: false,
+        semContato: false,
+      }),
+    ).toBe("Nenhum bolsista sem vir há 15 dias.");
+  });
+
+  it("total no topo, no singular e no plural", () => {
+    expect(textoTotalBolsistas(1, 15)).toBe("1 bolsista sem vir há 15 dias");
+    expect(textoTotalBolsistas(3, 7)).toBe("3 bolsistas sem vir há 7 dias");
+  });
+
+  it("última presença: dia, outro ano ou nunca veio", () => {
+    expect(textoUltimaPresenca("2026-11-05", HOJE)).toBe(
+      "última presença: 05/11",
+    );
+    expect(textoUltimaPresenca("2025-12-30", HOJE)).toBe(
+      "última presença: 30/12/2025",
+    );
+    expect(textoUltimaPresenca(null, HOJE)).toBe("nunca veio");
   });
 });

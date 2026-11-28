@@ -70,6 +70,8 @@ it("traz as sementes: unidade dos ajustes e duas mensagens prontas ativas", asyn
   expect(mensagens).toEqual([
     { nome: "Renovação", finalidade: "renovacao" },
     { nome: "Convite para voltar", finalidade: "retorno" },
+    // Semente do marco de bolsistas (0012).
+    { nome: "Bolsista sem vir", finalidade: "bolsista" },
   ]);
 });
 

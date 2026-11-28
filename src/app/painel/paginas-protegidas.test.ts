@@ -3,10 +3,15 @@ import { join } from "node:path";
 import ts from "typescript";
 import { describe, expect, it } from "vitest";
 
-/** Pastas do M2: toda página delas é só da administração. */
-const PASTAS = ["alunos", "contatos", "configuracoes", "vitrine"].map((p) =>
-  join(process.cwd(), "src/app/painel", p),
-);
+/** Pastas do M2 e de bolsistas: toda página delas é só da administração. */
+const PASTAS = [
+  "alunos",
+  "contatos",
+  "configuracoes",
+  "vitrine",
+  "bolsistas",
+  "chamada",
+].map((p) => join(process.cwd(), "src/app/painel", p));
 const CHAMADA = "await exigirAdministracao();";
 const MODULO_ACESSO = "@/servidor/auth/acesso";
 
@@ -154,8 +159,14 @@ export default Pagina;`;
 describe("páginas do M2", () => {
   const paginas = PASTAS.flatMap(acharPaginas);
 
-  it("existem páginas em alunos, configuracoes e vitrine", () => {
-    for (const pasta of ["alunos", "configuracoes", "vitrine"]) {
+  it("existem páginas em alunos, configuracoes, vitrine, bolsistas e chamada", () => {
+    for (const pasta of [
+      "alunos",
+      "configuracoes",
+      "vitrine",
+      "bolsistas",
+      "chamada",
+    ]) {
       expect(paginas.some((p) => p.includes(`/painel/${pasta}/`))).toBe(true);
     }
   });

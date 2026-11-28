@@ -2,6 +2,9 @@ import { randomUUID } from "node:crypto";
 import type { DataIso } from "@/servidor/alunos/datas";
 import type { Banco } from "@/servidor/banco/cliente";
 import {
+  acordosBolsista,
+  aulas,
+  bolsistas,
   eventos,
   matriculas,
   modulos,
@@ -9,8 +12,10 @@ import {
   pessoaPapeis,
   pessoas,
   planos,
+  presencasAula,
   responsabilidades,
   ritmos,
+  situacoesBolsista,
   turmaDias,
   turmas,
 } from "@/servidor/banco/esquema";
@@ -209,4 +214,102 @@ export async function criarMatricula(
 ) {
   const [matricula] = await db.insert(matriculas).values(valores).returning();
   return matricula;
+}
+
+/**
+ * Bolsista: pessoa com o papel `bolsista` ativo (como no cadastro real, sem o
+ * papel `aluno`, salvo `tambemAluno`), ficha em `bolsistas`, ativação em
+ * `desde` e acordo de dias vigente desde `desde` (padrão: terças, 2026-11-01).
+ * Adulto por padrão e com WhatsApp próprio.
+ */
+export async function criarBolsista(
+  db: Banco,
+  valores: {
+    criadoPor: string;
+    dias?: number[];
+    desde?: DataIso;
+    preferencia?: (typeof bolsistas.$inferInsert)["preferencia"];
+    nascimento?: DataIso;
+    /** Também aluno (papel `aluno` ativo), de propósito. */
+    tambemAluno?: boolean;
+  },
+) {
+  const { criadoPor, dias = [2], desde = "2026-11-01", preferencia } = valores;
+  const [pessoa] = await db
+    .insert(pessoas)
+    .values({
+      nome: `Bolsista ${sufixo()}`,
+      whatsapp: whatsappAleatorio(),
+      dataNascimento: valores.nascimento ?? "1990-01-01",
+    })
+    .returning();
+  await db
+    .insert(pessoaPapeis)
+    .values([
+      { pessoaId: pessoa.id, papel: "bolsista" as const, ativo: true },
+      ...(valores.tambemAluno
+        ? [{ pessoaId: pessoa.id, papel: "aluno" as const, ativo: true }]
+        : []),
+    ]);
+  await db.insert(bolsistas).values({ pessoaId: pessoa.id, preferencia });
+  await db.insert(situacoesBolsista).values({
+    pessoaId: pessoa.id,
+    tipo: "ativacao",
+    data: desde,
+    criadoPor,
+  });
+  await db.insert(acordosBolsista).values({
+    pessoaId: pessoa.id,
+    dias,
+    vigenteDesde: desde,
+    criadoPor,
+  });
+  return pessoa;
+}
+
+/**
+ * Aula de uma turma numa data (realizada, salvo indicação em contrário).
+ * Aula realizada já vem com chamada salva (por quem criou), a não ser que
+ * `chamadaSalva: false`.
+ */
+export async function criarAula(
+  db: Banco,
+  valores: {
+    turmaId: string;
+    data: DataIso;
+    situacao?: (typeof aulas.$inferInsert)["situacao"];
+    motivo?: string;
+    criadoPor: string;
+    chamadaSalva?: boolean;
+  },
+) {
+  const { chamadaSalva, ...resto } = valores;
+  const situacao = resto.situacao ?? "realizada";
+  const salva = chamadaSalva ?? situacao === "realizada";
+  const [aula] = await db
+    .insert(aulas)
+    .values({
+      ...resto,
+      situacao,
+      ...(salva
+        ? { chamadaSalvaEm: new Date(), chamadaSalvaPor: resto.criadoPor }
+        : {}),
+    })
+    .returning();
+  return aula;
+}
+
+export async function marcarPresenca(
+  db: Banco,
+  valores: { aulaId: string; pessoaId: string; por: string },
+) {
+  const [presenca] = await db
+    .insert(presencasAula)
+    .values({
+      aulaId: valores.aulaId,
+      pessoaId: valores.pessoaId,
+      marcadaPor: valores.por,
+    })
+    .returning();
+  return presenca;
 }

@@ -3,12 +3,10 @@
  * contato e a ficha precisam, com no máximo uma consulta por tabela. O estado
  * do período sai de `calcularEstado`; filtros e contagens ficam em `listas.ts`.
  */
-import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import {
   ajustesPeriodo,
-  bloqueiosContato,
-  contatos,
   matriculas,
   modulos,
   periodosContratados,
@@ -22,6 +20,12 @@ import {
   turmas,
 } from "../banco/esquema";
 import { ehUuid } from "../cadastros/comum";
+import {
+  carregarContatos,
+  type PessoaDeContato,
+  pessoaDeContato,
+  type UltimoContato,
+} from "../contatos/pessoa-de-contato";
 import { formatarDias, formatarHora } from "../vitrine/texto";
 import type { Executor } from "./cadastro";
 import { type DataIso, ehMenor } from "./datas";
@@ -32,6 +36,8 @@ import {
   type TrancamentoParaEstado,
   ultimoPeriodo,
 } from "./estado";
+
+export type { PessoaDeContato, UltimoContato };
 
 export type MatriculaAberta = {
   matriculaId: string;
@@ -48,26 +54,6 @@ export type MatriculaAberta = {
   horarioInicio: string;
   /** Ex.: "Forró Iniciante · ter e qui 19h". */
   rotulo: string;
-};
-
-/** Quem recebe as mensagens do aluno. */
-export type PessoaDeContato = {
-  pessoaId: string;
-  nome: string;
-  whatsapp: string | null;
-  ehResponsavel: boolean;
-  /** Adulto sem WhatsApp próprio, contatado pelo número do responsável. */
-  usandoNumeroDoResponsavel: boolean;
-  naoQuerContato: boolean;
-};
-
-/** Contato mais recente feito à pessoa de contato (por qualquer aluno dela). */
-export type UltimoContato = {
-  grupoId: string;
-  em: Date;
-  /** Nome de quem fez o contato. */
-  por: string;
-  resultado: string | null;
 };
 
 export type AlunoCarregado = {
@@ -92,7 +78,10 @@ export type AlunoCarregado = {
   planoUltimo: string | null;
   resumo: ResumoPeriodo;
   contato: PessoaDeContato;
+  /** Último contato de listas de aluno (o que a linha mostra e o resultado usa). */
   ultimoContato: UltimoContato | null;
+  /** Último contato de qualquer lista, inclusive de bolsista (aviso de contato recente). */
+  ultimoContatoGeral: UltimoContato | null;
 };
 
 /** Rótulo da turma: "Forró Iniciante · ter e qui 19h". */
@@ -106,42 +95,6 @@ export function rotuloDaTurma(t: {
 }
 
 type Responsavel = NonNullable<AlunoCarregado["responsavel"]>;
-
-/**
- * Adulto com WhatsApp: ele. Menor: o responsável. Adulto sem WhatsApp, com
- * responsável que tem: o responsável. Sem nenhum desses: ele, sem número
- * (um menor nunca é contatado pelo próprio número).
- */
-function pessoaDeContato(
-  aluno: { id: string; nome: string; whatsapp: string | null; menor: boolean },
-  responsavel: Responsavel | null,
-): Omit<PessoaDeContato, "naoQuerContato"> {
-  if (!aluno.menor && aluno.whatsapp) {
-    return {
-      pessoaId: aluno.id,
-      nome: aluno.nome,
-      whatsapp: aluno.whatsapp,
-      ehResponsavel: false,
-      usandoNumeroDoResponsavel: false,
-    };
-  }
-  if (responsavel && (aluno.menor || responsavel.whatsapp)) {
-    return {
-      pessoaId: responsavel.id,
-      nome: responsavel.nome,
-      whatsapp: responsavel.whatsapp,
-      ehResponsavel: true,
-      usandoNumeroDoResponsavel: !aluno.menor,
-    };
-  }
-  return {
-    pessoaId: aluno.id,
-    nome: aluno.nome,
-    whatsapp: null,
-    ehResponsavel: false,
-    usandoNumeroDoResponsavel: false,
-  };
-}
 
 function agrupar<T>(linhas: T[], chave: (l: T) => string): Map<string, T[]> {
   const mapa = new Map<string, T[]>();
@@ -313,41 +266,8 @@ export async function carregarAlunos(
   const idsDeContato = ids
     ? [...new Set(base.map((b) => b.contato.pessoaId))]
     : null;
-  const daPessoaDeContato = (coluna: Parameters<typeof inArray>[0]) =>
-    idsDeContato ? inArray(coluna, idsDeContato) : undefined;
-
-  const bloqueados = new Set(
-    (
-      await db
-        .select({ pessoaId: bloqueiosContato.pessoaId })
-        .from(bloqueiosContato)
-        .where(
-          and(
-            isNull(bloqueiosContato.desfeitoEm),
-            daPessoaDeContato(bloqueiosContato.pessoaId),
-          ),
-        )
-    ).map((b) => b.pessoaId),
-  );
-
-  const autor = alias(pessoas, "autor");
-  const ultimos = await db
-    .selectDistinctOn([contatos.pessoaContatoId], {
-      pessoaId: contatos.pessoaContatoId,
-      grupoId: contatos.grupoId,
-      em: contatos.criadoEm,
-      por: autor.nome,
-      resultado: contatos.resultado,
-    })
-    .from(contatos)
-    .innerJoin(autor, eq(autor.id, contatos.criadoPor))
-    .where(daPessoaDeContato(contatos.pessoaContatoId))
-    .orderBy(
-      asc(contatos.pessoaContatoId),
-      desc(contatos.criadoEm),
-      desc(contatos.id),
-    );
-  const ultimoPorPessoa = new Map(ultimos.map((u) => [u.pessoaId, u]));
+  const { bloqueados, ultimoPorPessoa, recentePorPessoa } =
+    await carregarContatos(db, idsDeContato, "aluno");
 
   const matriculasPorAluno = agrupar(linhasMatriculas, (m) => m.alunoId);
   const periodosPorAluno = agrupar(linhasPeriodos, (p) => p.alunoId);
@@ -372,7 +292,8 @@ export async function carregarAlunos(
         volta: t.volta,
       }));
       const ultimo = ultimoPeriodo(periodos);
-      const ultimoContato = ultimoPorPessoa.get(contato.pessoaId);
+      const ultimoContato = ultimoPorPessoa.get(contato.pessoaId) ?? null;
+      const ultimoContatoGeral = recentePorPessoa.get(contato.pessoaId) ?? null;
       return {
         id: p.id,
         nome: p.nome,
@@ -397,14 +318,8 @@ export async function carregarAlunos(
           ...contato,
           naoQuerContato: bloqueados.has(contato.pessoaId),
         },
-        ultimoContato: ultimoContato
-          ? {
-              grupoId: ultimoContato.grupoId,
-              em: ultimoContato.em,
-              por: ultimoContato.por,
-              resultado: ultimoContato.resultado,
-            }
-          : null,
+        ultimoContato,
+        ultimoContatoGeral,
       };
     },
   );

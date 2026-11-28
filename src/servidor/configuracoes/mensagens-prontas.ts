@@ -23,10 +23,12 @@ const ERROS_BANCO = {
   },
 };
 
+const FINALIDADES = ["renovacao", "retorno", "bolsista"] as const;
+
 const esquema = z.object({
   id: z.string().optional(),
   nome: z.string().trim().min(1, "Informe o nome."),
-  finalidade: z.enum(["renovacao", "retorno"], {
+  finalidade: z.enum(FINALIDADES, {
     error: "Escolha a finalidade.",
   }),
   texto: z.string(),
@@ -41,7 +43,7 @@ export type DadosMensagem = {
   ativa: boolean;
 };
 
-export type Finalidade = "renovacao" | "retorno";
+export type Finalidade = (typeof FINALIDADES)[number];
 
 export async function listarMensagens(db: Banco) {
   return db
@@ -69,7 +71,14 @@ export async function salvarMensagem(
 ): Promise<Resultado<{ id: string }>> {
   const analise = esquema.safeParse(dados);
   const erros = analise.success ? {} : errosDeZod(analise.error);
-  const erroTexto = validarTextoMensagem(dados.texto);
+  // O texto é conferido pelos campos da finalidade escolhida; sem finalidade
+  // válida, só se confere se há texto (o erro da finalidade já aparece).
+  const finalidadeEscolhida = FINALIDADES.find((f) => f === dados.finalidade);
+  const erroTexto = finalidadeEscolhida
+    ? validarTextoMensagem(dados.texto, finalidadeEscolhida)
+    : dados.texto.trim() === ""
+      ? "Escreva a mensagem."
+      : null;
   if (erroTexto) erros.texto = erroTexto;
   if (!analise.success || erroTexto) return { ok: false, erros };
   const { id, nome, finalidade, texto, ativa } = analise.data;

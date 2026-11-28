@@ -47,6 +47,7 @@ export function textoDoUltimoContato(
 const FINALIDADE: Record<FiltrosContatos["lista"], string> = {
   vence_em_breve: "renovação",
   vencido: "convite para voltar",
+  bolsista_ausente: "bolsista sem vir",
 };
 
 /** Aviso do topo quando não há mensagem pronta ativa para a lista. */
@@ -56,6 +57,9 @@ export function textoSemMensagem(lista: FiltrosContatos["lista"]): string {
 
 /** Título do estado vazio de cada lista, conforme os filtros. */
 export function textoVazio(f: FiltrosContatos): string {
+  if (f.lista === "bolsista_ausente") {
+    return `Nenhum bolsista sem vir há ${f.janela} dias.`;
+  }
   if (f.lista === "vence_em_breve") {
     return `Ninguém vence nos próximos ${f.janela} dias.`;
   }
@@ -67,4 +71,22 @@ export function textoVazio(f: FiltrosContatos): string {
   return f.todos
     ? "Nenhum aluno vencido."
     : "Ninguém venceu nos últimos 90 dias.";
+}
+
+/** Total do topo da aba: "3 bolsistas sem vir há 15 dias". */
+export function textoTotalBolsistas(total: number, janela: number): string {
+  return `${total} ${total === 1 ? "bolsista" : "bolsistas"} sem vir há ${janela} dias`;
+}
+
+/** "última presença: 12/11" ou "nunca veio" (data "AAAA-MM-DD" ou `null`). */
+export function textoUltimaPresenca(
+  ultima: DataIso | null,
+  hoje: DataIso,
+): string {
+  if (!ultima) return "nunca veio";
+  const texto =
+    ultima.slice(0, 4) === hoje.slice(0, 4)
+      ? formatarDia(ultima)
+      : formatarDataCompleta(ultima);
+  return `última presença: ${texto}`;
 }
